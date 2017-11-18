@@ -630,16 +630,14 @@ int PT_GetSerialBuffer(struct pt *pt)
     PT_BEGIN(pt);
 
     num_char = 0;
-    //memset(term_buffer, 0, max_chars);
-
     while(num_char < max_chars) {
         // get the character
         // yield until there is a valid character so that other
         // threads can execute
         PT_YIELD_UNTIL(pt, UARTReceivedDataIsAvailable(UART2));
-        character = UARTGetDataByte(UART2);
+        character = UARTGetDataByte(UART2); 
 
-        tft_setCursor(10 + num_char * 10, 10);
+        /* tft_setCursor(10 + num_char * 10, 10);
         tft_setTextSize(2);
         tft_setTextColor(ILI9340_WHITE);
         char buffer[32];
@@ -650,16 +648,33 @@ int PT_GetSerialBuffer(struct pt *pt)
         } else {
           sprintf(buffer, "%c", character);
         }
-        tft_writeString(buffer);
+        tft_writeString(buffer); */
 
         // end line
         if (character == '\n') {
-            PT_term_buffer[num_char] = 0;
-            break;
+          PT_term_buffer[num_char] = 0;
+          break;
         } else if (character != '\r') {
-            PT_term_buffer[num_char++] = character;
+          PT_term_buffer[num_char++] = character;
         }
     } //end while(num_char < max_size)
+
+    // kill this input thread, to allow spawning thread to execute
+    PT_EXIT(pt);
+    // and indicate the end of the thread
+    PT_END(pt);
+}
+
+int PT_GetSerialBufferChar(struct pt *pt)
+{
+    static char character;
+    // mark the beginnning of the input thread
+    PT_BEGIN(pt);
+
+    PT_YIELD_UNTIL(pt, UARTReceivedDataIsAvailable(UART2));
+    character = UARTGetDataByte(UART2); 
+    PT_term_buffer[0] = character;
+    PT_term_buffer[1] = 0;
 
     // kill this input thread, to allow spawning thread to execute
     PT_EXIT(pt);

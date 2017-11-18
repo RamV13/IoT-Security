@@ -12,8 +12,6 @@
 #include "config.h"
 // threading library
 #include "pt_cornell_1_2_2.h"
-// yup, the expander
-#include "port_expander_brl4.h"
 
 ////////////////////////////////////
 // graphics libraries
@@ -21,6 +19,7 @@
 #include "tft_master.h"
 #include "tft_gfx.h"
 #include <string.h>
+#include <stdio.h>
 // need for sin function
 #include <math.h>
 ////////////////////////////////////
@@ -108,16 +107,6 @@ void printLine2(int line_number, char* print_buffer, short text_color, short bac
     tft_writeString(print_buffer);
 }
 
-// Predefined colors definitions (from tft_master.h)
-//#define	ILI9340_BLACK   0x0000
-//#define	ILI9340_BLUE    0x001F
-//#define	ILI9340_RED     0xF800
-//#define	ILI9340_GREEN   0x07E0
-//#define ILI9340_CYAN    0x07FF
-//#define ILI9340_MAGENTA 0xF81F
-//#define ILI9340_YELLOW  0xFFE0
-//#define ILI9340_WHITE   0xFFFF
-
 // === thread structures ============================================
 // thread control structs
 // note that UART input and output are threads
@@ -143,14 +132,48 @@ int sys_time_seconds ;
   sprintf(res, PT_term_buffer); \
 }
 
-#define TIMEOUT 5
+#define uart_recv_char(res) { \
+  PT_SPAWN(pt, &pt_input, PT_GetSerialBufferChar(&pt_input)); \
+  sprintf(res, PT_term_buffer); \
+}
+
+#define TIMEOUT 10
 
 #define wait_recv(res, msg) { \
+  res[0] = 0; \
   int count = 0; \
+  int num_lines = 0; \
   while (strcmp(res, msg) != 0) { \
     uart_recv(res); \
+    tft_setCursor(0, 10 + num_lines * 10); \
+    tft_writeString(">"); \
+    tft_setCursor(10, 10 + num_lines * 10); \
+    tft_writeString(res); \
+    num_lines++; \
     count++; \
-    if (count == TIMEOUT) break; \
+    if (count == TIMEOUT) { \
+      tft_fillScreen(ILI9340_RED); \
+      break; \
+    } \
+  } \
+}
+
+#define wait_recv_char(res, msg) { \
+  res[0] = 0; \
+  int count = 0; \
+  int num_lines = 0; \
+  while (strcmp(res, msg) != 0) { \
+    uart_recv_char(res); \
+    tft_setCursor(0, 10 + num_lines * 10); \
+    tft_writeString(">"); \
+    tft_setCursor(10, 10 + num_lines * 10); \
+    tft_writeString(res); \
+    num_lines++; \
+    count++; \
+    if (count == TIMEOUT) { \
+      tft_fillScreen(ILI9340_RED); \
+      break; \
+    } \
   } \
 }
 
@@ -160,7 +183,8 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
 
   char res[32];
 
-  PT_YIELD_TIME_msec(5000);
+  tft_setTextSize(1);
+  tft_setTextColor(ILI9340_WHITE);
 
   uart_send("ATE0"); // disable echo
   wait_recv(res, "OK");
@@ -170,24 +194,105 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   wait_recv(res, "OK");
   PT_YIELD_TIME_msec(1000);
   tft_fillScreen(ILI9340_BLACK);
-  uart_send("AT+CIPMUX=1");
+  uart_send("AT+CIPMUX=0");
   wait_recv(res, "OK");
   PT_YIELD_TIME_msec(1000);
   tft_fillScreen(ILI9340_BLACK);
-  uart_send("AT+CIPSTART=0,\"TCP\",\"10.148.6.13\",3000");
+  uart_send("AT+CIPSTART=\"TCP\",\"104.131.124.11\",4000");
   wait_recv(res, "OK");
   PT_YIELD_TIME_msec(1000);
   tft_fillScreen(ILI9340_BLACK);
-  uart_send("AT+CIPSEND=0,5");
-  wait_recv(res, "OK");
-  tft_fillScreen(ILI9340_RED);
-  PT_YIELD_TIME_msec(1000);
+  uart_send("AT+CIPSEND=2");
+  wait_recv_char(res, ">");
+  PT_YIELD_TIME_msec(500);
   tft_fillScreen(ILI9340_BLACK);
-  uart_send_raw("start");
-  uart_recv(res); // wait_recv(res, "SEND OK")
+  uart_send_raw("s");
+  PT_YIELD_TIME_msec(500);
+  int num_lines = 0;
+  while (1) {
+    uart_recv(res);
+    tft_setCursor(0, 10 + num_lines * 10);
+    tft_writeString(">");
+    tft_setCursor(10, 10 + num_lines * 10);
+    if (strcmp(res, "\n") == 0) {
+      tft_writeString("\\n");
+    } else if (strcmp(res, "\r") == 0) {
+      tft_writeString("\\r");
+    } else {
+      tft_writeString(res);
+    }
+    num_lines++;
+  }
   PT_YIELD_TIME_msec(1000);
   tft_fillScreen(ILI9340_BLACK);
 
+  num_lines = 0;
+  while (1) {
+    uart_recv_char(res);
+    tft_setCursor(0, 10 + num_lines * 10);
+    tft_writeString(">");
+    tft_setCursor(10, 10 + num_lines * 10);
+    if (strcmp(res, "\n") == 0) {
+      tft_writeString("\\n");
+    } else if (strcmp(res, "\r") == 0) {
+      tft_writeString("\\r");
+    } else {
+      tft_writeString(res);
+    }
+    num_lines++;
+  }
+
+  uart_recv(res); // wait_recv(res, "SEND OK")
+  tft_setCursor(0, 10);
+  tft_writeString(">");
+  tft_setCursor(10, 10);
+  tft_writeString(res);
+  // PT_YIELD_TIME_msec(1000);
+
+  uart_recv(res);
+  tft_setCursor(0, 20);
+  tft_writeString(">");
+  tft_setCursor(10, 20);
+  tft_writeString(res);
+  // PT_YIELD_TIME_msec(1000);
+
+  uart_recv(res);
+  tft_setCursor(0, 30);
+  tft_writeString(">");
+  tft_setCursor(10, 30);
+  tft_writeString(res);
+  // PT_YIELD_TIME_msec(1000);
+
+  uart_recv(res);
+  tft_setCursor(0, 40);
+  tft_writeString(">");
+  tft_setCursor(10, 40);
+  tft_writeString(res);
+  // PT_YIELD_TIME_msec(1000);
+
+  uart_recv(res);
+  tft_setCursor(0, 50);
+  tft_writeString(">");
+  tft_setCursor(10, 50);
+  tft_writeString(res);
+  // PT_YIELD_TIME_msec(1000);
+
+  uart_recv(res);
+  tft_setCursor(0, 60);
+  tft_writeString(">");
+  tft_setCursor(10, 60);
+  tft_writeString(res);
+  // PT_YIELD_TIME_msec(1000);
+
+  uart_recv(res);
+  tft_setCursor(0, 70);
+  tft_writeString(">");
+  tft_setCursor(10, 70);
+  tft_writeString(res);
+  // PT_YIELD_TIME_msec(1000);
+  // tft_fillScreen(ILI9340_BLACK);
+
+/*
   int count = 0;
   while (1) {
     tft_fillScreen(ILI9340_BLUE);
@@ -221,6 +326,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPCLOSE=0");
   wait_recv(res, "OK");
+*/
 
   while(1) {
     PT_YIELD_TIME_msec(1000);
