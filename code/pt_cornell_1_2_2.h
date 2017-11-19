@@ -620,9 +620,6 @@ do { static int i ; \
 char PT_term_buffer[max_chars];
 int num_char;
 
-#include "tft_master.h"
-#include "tft_gfx.h"
-
 int PT_GetSerialBuffer(struct pt *pt)
 {
     static char character;
