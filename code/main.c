@@ -20,6 +20,7 @@
 #include "tft_gfx.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 // need for sin function
 #include <math.h>
 ////////////////////////////////////
@@ -137,7 +138,9 @@ int sys_time_seconds ;
   sprintf(res, PT_term_buffer); \
 }
 
-#define TIMEOUT 10
+#define TIMEOUT  10
+
+#define DEBUG  true
 
 #define wait_recv(res, msg) { \
   res[0] = 0; \
@@ -145,11 +148,13 @@ int sys_time_seconds ;
   int num_lines = 0; \
   while (strcmp(res, msg) != 0) { \
     uart_recv(res); \
-    tft_setCursor(0, 10 + num_lines * 10); \
-    tft_writeString(">"); \
-    tft_setCursor(10, 10 + num_lines * 10); \
-    tft_writeString(res); \
-    num_lines++; \
+    if (DEBUG) { \
+      tft_setCursor(0, 10 + num_lines * 10); \
+      tft_writeString(">"); \
+      tft_setCursor(10, 10 + num_lines * 10); \
+      tft_writeString(res); \
+      num_lines++; \
+    } \
     count++; \
     if (count == TIMEOUT) { \
       tft_fillScreen(ILI9340_RED); \
@@ -164,11 +169,13 @@ int sys_time_seconds ;
   int num_lines = 0; \
   while (strcmp(res, msg) != 0) { \
     uart_recv_char(res); \
-    tft_setCursor(0, 10 + num_lines * 10); \
-    tft_writeString(">"); \
-    tft_setCursor(10, 10 + num_lines * 10); \
-    tft_writeString(res); \
-    num_lines++; \
+    if (DEBUG) { \
+      tft_setCursor(0, 10 + num_lines * 10); \
+      tft_writeString(">"); \
+      tft_setCursor(10, 10 + num_lines * 10); \
+      tft_writeString(res); \
+      num_lines++; \
+    } \
     count++; \
     if (count == TIMEOUT) { \
       tft_fillScreen(ILI9340_RED); \
@@ -204,10 +211,12 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPSEND=2");
   wait_recv_char(res, ">");
-  PT_YIELD_TIME_msec(500);
+  PT_YIELD_TIME_msec(1000);
   tft_fillScreen(ILI9340_BLACK);
   uart_send_raw("s");
-  PT_YIELD_TIME_msec(500);
+  wait_recv(res, "SEND OK");
+  tft_fillScreen(ILI9340_BLACK);
+
   int num_lines = 0;
   while (1) {
     uart_recv(res);
@@ -223,74 +232,6 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
     }
     num_lines++;
   }
-  PT_YIELD_TIME_msec(1000);
-  tft_fillScreen(ILI9340_BLACK);
-
-  num_lines = 0;
-  while (1) {
-    uart_recv_char(res);
-    tft_setCursor(0, 10 + num_lines * 10);
-    tft_writeString(">");
-    tft_setCursor(10, 10 + num_lines * 10);
-    if (strcmp(res, "\n") == 0) {
-      tft_writeString("\\n");
-    } else if (strcmp(res, "\r") == 0) {
-      tft_writeString("\\r");
-    } else {
-      tft_writeString(res);
-    }
-    num_lines++;
-  }
-
-  uart_recv(res); // wait_recv(res, "SEND OK")
-  tft_setCursor(0, 10);
-  tft_writeString(">");
-  tft_setCursor(10, 10);
-  tft_writeString(res);
-  // PT_YIELD_TIME_msec(1000);
-
-  uart_recv(res);
-  tft_setCursor(0, 20);
-  tft_writeString(">");
-  tft_setCursor(10, 20);
-  tft_writeString(res);
-  // PT_YIELD_TIME_msec(1000);
-
-  uart_recv(res);
-  tft_setCursor(0, 30);
-  tft_writeString(">");
-  tft_setCursor(10, 30);
-  tft_writeString(res);
-  // PT_YIELD_TIME_msec(1000);
-
-  uart_recv(res);
-  tft_setCursor(0, 40);
-  tft_writeString(">");
-  tft_setCursor(10, 40);
-  tft_writeString(res);
-  // PT_YIELD_TIME_msec(1000);
-
-  uart_recv(res);
-  tft_setCursor(0, 50);
-  tft_writeString(">");
-  tft_setCursor(10, 50);
-  tft_writeString(res);
-  // PT_YIELD_TIME_msec(1000);
-
-  uart_recv(res);
-  tft_setCursor(0, 60);
-  tft_writeString(">");
-  tft_setCursor(10, 60);
-  tft_writeString(res);
-  // PT_YIELD_TIME_msec(1000);
-
-  uart_recv(res);
-  tft_setCursor(0, 70);
-  tft_writeString(">");
-  tft_setCursor(10, 70);
-  tft_writeString(res);
-  // PT_YIELD_TIME_msec(1000);
-  // tft_fillScreen(ILI9340_BLACK);
 
 /*
   int count = 0;

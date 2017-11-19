@@ -635,20 +635,7 @@ int PT_GetSerialBuffer(struct pt *pt)
         // yield until there is a valid character so that other
         // threads can execute
         PT_YIELD_UNTIL(pt, UARTReceivedDataIsAvailable(UART2));
-        character = UARTGetDataByte(UART2); 
-
-        /* tft_setCursor(10 + num_char * 10, 10);
-        tft_setTextSize(2);
-        tft_setTextColor(ILI9340_WHITE);
-        char buffer[32];
-        if (character == '\n') {
-          sprintf(buffer, "\\n");
-        } else if (character == '\r') {
-          sprintf(buffer, "\\r");
-        } else {
-          sprintf(buffer, "%c", character);
-        }
-        tft_writeString(buffer); */
+        character = UARTGetDataByte(UART2);
 
         // end line
         if (character == '\n') {
@@ -672,7 +659,7 @@ int PT_GetSerialBufferChar(struct pt *pt)
     PT_BEGIN(pt);
 
     PT_YIELD_UNTIL(pt, UARTReceivedDataIsAvailable(UART2));
-    character = UARTGetDataByte(UART2); 
+    character = UARTGetDataByte(UART2);
     PT_term_buffer[0] = character;
     PT_term_buffer[1] = 0;
 
