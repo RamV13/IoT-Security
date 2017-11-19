@@ -76,38 +76,6 @@ volatile unsigned int phase_accum_main, phase_incr_main=400.0*two32/Fs ;//
 #define sine_table_size 256
 volatile int sin_table[sine_table_size];
 
-// === print a line on TFT =====================================================
-// print a line on the TFT
-// string buffer
-char buffer[60];
-void printLine(int line_number, char* print_buffer, short text_color, short back_color){
-    // line number 0 to 31 
-    /// !!! assumes tft_setRotation(0);
-    // print_buffer is the string to print
-    int v_pos;
-    v_pos = line_number * 10 ;
-    // erase the pixels
-    tft_fillRoundRect(0, v_pos, 239, 8, 1, back_color);// x,y,w,h,radius,color
-    tft_setTextColor(text_color); 
-    tft_setCursor(0, v_pos);
-    tft_setTextSize(1);
-    tft_writeString(print_buffer);
-}
-
-void printLine2(int line_number, char* print_buffer, short text_color, short back_color){
-    // line number 0 to 31 
-    /// !!! assumes tft_setRotation(0);
-    // print_buffer is the string to print
-    int v_pos;
-    v_pos = line_number * 20 ;
-    // erase the pixels
-    tft_fillRoundRect(0, v_pos, 239, 16, 1, back_color);// x,y,w,h,radius,color
-    tft_setTextColor(text_color); 
-    tft_setCursor(0, v_pos);
-    tft_setTextSize(2);
-    tft_writeString(print_buffer);
-}
-
 // === thread structures ============================================
 // thread control structs
 // note that UART input and output are threads
@@ -140,7 +108,7 @@ int sys_time_seconds ;
 
 #define TIMEOUT  10
 
-#define DEBUG  true
+#define DEBUG  false
 
 #define wait_recv(res, msg) { \
   res[0] = 0; \
@@ -184,6 +152,21 @@ int sys_time_seconds ;
   } \
 }
 
+int num_lines = 0;
+static void print_line(char* msg) {
+  tft_setCursor(0, 10 + num_lines * 10);
+  tft_writeString(">");
+  tft_setCursor(10, 10 + num_lines * 10);
+  if (strcmp(msg, "\n") == 0) {
+    tft_writeString("\\n");
+  } else if (strcmp(msg, "\r") == 0) {
+    tft_writeString("\\r");
+  } else {
+    tft_writeString(msg);
+  }
+  num_lines++;
+}
+
 //=== Serial terminal thread =================================================
 static PT_THREAD (protothread_serial(struct pt *pt)) {
   PT_BEGIN(pt);
@@ -196,78 +179,57 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   uart_send("ATE0"); // disable echo
   wait_recv(res, "OK");
   PT_YIELD_TIME_msec(1000);
-  tft_fillScreen(ILI9340_BLACK);
+  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT");
   wait_recv(res, "OK");
   PT_YIELD_TIME_msec(1000);
-  tft_fillScreen(ILI9340_BLACK);
+  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPMUX=0");
   wait_recv(res, "OK");
   PT_YIELD_TIME_msec(1000);
-  tft_fillScreen(ILI9340_BLACK);
+  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPSTART=\"TCP\",\"104.131.124.11\",4000");
   wait_recv(res, "OK");
   PT_YIELD_TIME_msec(1000);
-  tft_fillScreen(ILI9340_BLACK);
-  uart_send("AT+CIPSEND=2");
+  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
+  uart_send("AT+CIPSEND=7");
   wait_recv_char(res, ">");
   PT_YIELD_TIME_msec(1000);
-  tft_fillScreen(ILI9340_BLACK);
-  uart_send_raw("s");
+  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
+  uart_send_raw("start\n");
   wait_recv(res, "SEND OK");
-  tft_fillScreen(ILI9340_BLACK);
+  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
 
-  int num_lines = 0;
+  tft_setTextColor(ILI9340_WHITE);
+  tft_setTextSize(2);
+
   while (1) {
-    uart_recv(res);
-    tft_setCursor(0, 10 + num_lines * 10);
-    tft_writeString(">");
-    tft_setCursor(10, 10 + num_lines * 10);
-    if (strcmp(res, "\n") == 0) {
-      tft_writeString("\\n");
-    } else if (strcmp(res, "\r") == 0) {
-      tft_writeString("\\r");
-    } else {
-      tft_writeString(res);
+    tft_fillScreen(ILI9340_BLACK);
+    int count = 0;
+    int num_lines = 0;
+    while (1) {
+      uart_recv(res);
+      const char* ptr = strchr(res, ':');
+      char length_string[8];
+      char data[32];
+      char buffer[32];
+      if (ptr) {
+        unsigned int size;
+        sscanf(res, "+IPD,%u:", &size);
+        strncpy(res, ++ptr, size);
+        res[size] = 0;
+        tft_setCursor(10, 10);
+        tft_writeString(res);
+        PT_YIELD_TIME_msec(1000);
+        tft_fillScreen(ILI9340_BLACK);
+        break;
+      }
+      count++;
+      if (count == TIMEOUT) {
+        break;
+      }
     }
-    num_lines++;
   }
-
-/*
-  int count = 0;
-  while (1) {
-    tft_fillScreen(ILI9340_BLUE);
-    uart_recv(res);
-    const char* ptr = strchr(res, ':');
-    char length_string[8];
-    char data[32];
-    if (ptr) {
-      tft_fillScreen(ILI9340_RED);
-      int index = ptr - res;
-      memcpy(length_string, &res[7], index - 7);
-      int length = atoi(length_string);
-      memcpy(data, &res[9], length);
-      tft_setCursor(10, 100);
-      tft_setTextColor(ILI9340_WHITE);
-      tft_setTextSize(2);
-      tft_writeString(data);
-    }
-    count++;
-    if (count == TIMEOUT) {
-      tft_setCursor(10, 100);
-      tft_setTextColor(ILI9340_WHITE);
-      tft_setTextSize(2);
-      tft_writeString("FUCK");
-      break;
-    }
-    PT_YIELD_TIME_msec(1000);
-  }
-
-  PT_YIELD_TIME_msec(1000);
-  tft_fillScreen(ILI9340_BLACK);
-  uart_send("AT+CIPCLOSE=0");
-  wait_recv(res, "OK");
-*/
 
   while(1) {
     PT_YIELD_TIME_msec(1000);
