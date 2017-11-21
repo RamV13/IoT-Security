@@ -172,9 +172,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
         tft_writeString(res);
         PT_YIELD_TIME_msec(1000);
         tft_fillScreen(ILI9340_BLACK);
-        if (strstr(res, "sound")) {
-          play_score_sound();
-        }
+        play_score_sound();
         break;
       }
       count++;
