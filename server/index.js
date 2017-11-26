@@ -1,9 +1,17 @@
 var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
-app.use(bodyparser.json());
+app.use(bodyParser.json());
 
-// TODO API key authorization
+var net = require('net');
+
+// TODO authorization
+
+var server = net.createServer((socket) => {
+  socket.pipe(socket);
+});
+
+server.listen(3002);
 
 app.get('/skip', (req, res) => {
   
