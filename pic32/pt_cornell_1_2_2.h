@@ -751,7 +751,7 @@ void PT_setup (void)
  PPSInput (2, U2RX, RPA1); //Assign U2RX to pin RPA1 -- 
  // The TX pin must be one of the Group 4 output pins
  // RPA3, RPB0, RPB9, RPB10, RPB14 
- PPSOutput(4, RPB10, U2TX); //Assign U2TX to pin RPB10 -- 
+ PPSOutput(4, RPB9, U2TX); //Assign U2TX to pin RPB10 -- 
  
   UARTConfigure(UART2, UART_ENABLE_PINS_TX_RX_ONLY);
   UARTSetLineControl(UART2, UART_DATA_SIZE_8_BITS | UART_PARITY_NONE | UART_STOP_BITS_1);
