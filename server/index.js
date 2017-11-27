@@ -24,7 +24,7 @@ var playing = false;
 
 // SOCKET
 
-const CHUNK_SIZE = 11025; // TODO calculate optimal chunk size
+const CHUNK_SIZE = 1; // TODO calculate optimal chunk size
 
 /**
  * Retrieve an array of data bytes from a WAV file given a song in a format
@@ -56,15 +56,16 @@ function get_song_bytes(song, callback) {
 var server = net.createServer((socket) => {
   socket.setEncoding('utf8');
   socket.on('data', (data) => {
-    get_song_bytes(_.trimEnd(data), (data, err) => {
+    console.log(data);
+    get_song_bytes(_.trimEnd('duwc.wav'), (data, err) => {
       if (err) {
         socket.write('failure');
       } else {
         function send_data(data) {
           if (playing) {
-            socket.write(_.reduce(_.head(data), (acc, x) => acc + x + ',', ''));
+            socket.write('' + _.head(_.head(data)));
           }
-          if (_.size(data) > 1) setTimeout(() => { send_data(playing ? _.tail(data) : data); }, 500);
+          if (_.size(data) > 1) setTimeout(() => { send_data(playing ? _.tail(data) : data); }, 0);
         }
         send_data(_.chunk(data, CHUNK_SIZE));
       }
