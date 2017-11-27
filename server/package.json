@@ -11,6 +11,8 @@
   "license": "MIT",
   "dependencies": {
     "body-parser": "^1.18.2",
-    "express": "^4.16.2"
+    "express": "^4.16.2",
+    "lodash": "^4.17.4",
+    "node-wav": "0.0.2"
   }
 }
