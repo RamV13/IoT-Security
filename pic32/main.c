@@ -159,6 +159,8 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
 
   tft_setTextSize(2);
 
+  static int table_index = 0;
+
   while (1) {
     tft_fillScreen(ILI9340_BLACK);
     int count = 0;
@@ -171,17 +173,12 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
         sscanf(res, "+IPD,%u:", &size);
         strncpy(res, ++ptr, size);
         res[size] = 0;
-        char* data = strtok(res, ",");
-        int i;
-        for (i = 0; i < BUFFER_SIZE; i++) {
-            if (data == NULL) {
-              tft_fillScreen(ILI9340_RED);
-              exit(1);
-            }
-            table[i] = DAC_config_chan_A | atoi(data);
-            data = strtok(NULL, ",");
+        table[table_index] = DAC_config_chan_A | atoi(res);
+        table_index++;
+        if (table_index == BUFFER_SIZE) {
+          play_sound();
+          table_index = 0;
         }
-        play_sound();
         break;
       }
       count++;
