@@ -10,6 +10,8 @@ var lineReader = require('readline');
 
 var _ = require('lodash');
 
+var mutex = require('node-mutex')();
+
 // TODO authorization
 
 function error(msg) {
@@ -26,7 +28,8 @@ var playing = false;
 
 const CHUNK_SIZE = 1; // TODO calculate optimal chunk size
 const PLAYING_DELAY = 1000;
-const DATA_DELAY = 0;
+const DATA_DELAY = 100;
+const CHUNK_DELAY = 1000;
 
 /**
  * Retrieve an array of data bytes from a WAV file given a song in a format
@@ -45,16 +48,37 @@ function get_song_bytes(song, callback) {
     });
 }
 
-var server = net.createServer((socket) => {
-  socket.setEncoding('utf8');
-  socket.on('data', (data) => {
-    get_song_bytes(_.trimEnd(data), (data, err) => {
-      if (err) return console.error('song byte conversion failure');
+var datas = [];
+const DATAS_KEY = 'datas_key';
+
+function run() {
+  mutex
+    .lock(DATAS_KEY)
+    .then((unlock) => {
       function send_data(data) {
         if (playing) socket.write('' + _.head(data));
         if (_.size(data) > 1) setTimeout(() => { send_data(playing ? _.tail(data) : data); }, playing ? DATA_DELAY : PLAYING_DELAY);
       }
-      send_data(data);
+      send_data(_.head(datas));
+      datas = _.tail(datas);
+      setTimeout(send, CHUNK_DELAY);
+      unlock();
+    });
+}
+run();
+
+var server = net.createServer((socket) => {
+  socket.setEncoding('utf8');
+  socket.on('data', (data) => {
+    console.log('From PIC: ' + data);
+    get_song_bytes(_.trimEnd('duwc.wavs'), (data, err) => {
+      if (err) return console.error('song byte conversion failure');
+      mutex
+        .lock(DATAS_KEY)
+        .then((unlock) => {
+          datas.push(data);
+          unlock();
+        });
     });
   });
 });
