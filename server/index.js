@@ -52,10 +52,12 @@ var datas = [];
 var datas_lock = new AsyncLock();
 const DATAS_KEY = 'DATAS_KEY';
 
+var primary_socket;
+
 function run() {
   datas_lock.acquire(DATAS_KEY, (unlock) => {
     function send_data(data) {
-      if (playing) socket.write('' + _.head(data));
+      if (playing) primary_socket.write('' + _.head(data));
       if (_.size(data) > 1) setTimeout(() => { send_data(playing ? _.tail(data) : data); }, playing ? DATA_DELAY : PLAYING_DELAY);
     }
     send_data(_.head(datas));
@@ -64,10 +66,11 @@ function run() {
     unlock();
   });
 }
-run();
 
 var server = net.createServer((socket) => {
   socket.setEncoding('utf8');
+  primary_socket = socket;
+  run();
   socket.on('data', (data) => {
     console.log('From PIC: ' + data);
     get_song_bytes(_.trimEnd('duwc.wavs'), (data, err) => {
