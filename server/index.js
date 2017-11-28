@@ -10,7 +10,7 @@ var lineReader = require('readline');
 
 var _ = require('lodash');
 
-var mutex = require('node-mutex')();
+var AsyncLock = require('async-lock');
 
 // TODO authorization
 
@@ -49,21 +49,20 @@ function get_song_bytes(song, callback) {
 }
 
 var datas = [];
-const DATAS_KEY = 'datas_key';
+var datas_lock = new AsyncLock();
+const DATAS_KEY = 'DATAS_KEY';
 
 function run() {
-  mutex
-    .lock(DATAS_KEY)
-    .then((unlock) => {
-      function send_data(data) {
-        if (playing) socket.write('' + _.head(data));
-        if (_.size(data) > 1) setTimeout(() => { send_data(playing ? _.tail(data) : data); }, playing ? DATA_DELAY : PLAYING_DELAY);
-      }
-      send_data(_.head(datas));
-      datas = _.tail(datas);
-      setTimeout(send, CHUNK_DELAY);
-      unlock();
-    });
+  datas_lock.acquire(DATAS_KEY, (unlock) => {
+    function send_data(data) {
+      if (playing) socket.write('' + _.head(data));
+      if (_.size(data) > 1) setTimeout(() => { send_data(playing ? _.tail(data) : data); }, playing ? DATA_DELAY : PLAYING_DELAY);
+    }
+    send_data(_.head(datas));
+    datas = _.tail(datas);
+    setTimeout(run, CHUNK_DELAY);
+    unlock();
+  });
 }
 run();
 
@@ -73,12 +72,10 @@ var server = net.createServer((socket) => {
     console.log('From PIC: ' + data);
     get_song_bytes(_.trimEnd('duwc.wavs'), (data, err) => {
       if (err) return console.error('song byte conversion failure');
-      mutex
-        .lock(DATAS_KEY)
-        .then((unlock) => {
-          datas.push(data);
-          unlock();
-        });
+      datas_lock.acquire(DATAS_KEY, (unlock) => {
+        datas.push(data);
+        unlock();
+      });
     });
   });
 });
