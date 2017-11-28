@@ -6,7 +6,6 @@ app.use(bodyParser.json());
 var net = require('net');
 
 var fs = require('fs');
-var wav = require('node-wav');
 
 var _ = require('lodash');
 
