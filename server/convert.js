@@ -26,6 +26,6 @@ if (!result) return console.error('failed to decode song: ' + song);
 var data = result.channelData[0];
 var min = _.min(data);
 var max = _.max(data);
-data = _.map(data, (x) => Math.trunc((x - min) * 4095.5 * (max - min)));
+data = _.map(data, (x) => Math.trunc((x - min) * 4095.5 / (max - min)));
 // TODO bitwise OR with DAC CS
 fs.writeFileSync(song + 's', _.reduce(data, (acc, x) => acc + x + '\n', ''));
