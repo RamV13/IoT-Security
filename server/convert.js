@@ -28,4 +28,4 @@ var min = _.min(data);
 var max = _.max(data);
 data = _.map(data, (x) => Math.trunc((x - min) * 4095.5 * (max - min)));
 // TODO bitwise OR with DAC CS
-fs.writeFileSync(song + 's', _.reduce(data, (acc, x) => acc + (acc == '' ? '' : ',') + x, ''));
+fs.writeFileSync(song + 's', _.reduce(data, (acc, x) => acc + x + '\n', ''));
