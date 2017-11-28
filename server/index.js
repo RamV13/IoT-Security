@@ -31,40 +31,22 @@ const CHUNK_SIZE = 1; // TODO calculate optimal chunk size
  * suitable for a 12-bit DAC
  */
 function get_song_bytes(song, callback) {
-  var file;
-  try {
-    file = fs.readFileSync('./songs/' + song);
-  } catch (err) {
-    return callback(null, error('failed to read song: ' + song));
-  }
-  if (!file) return callback(null, error('failed to read song: ' + song));
-  var result;
-  try {
-    result = wav.decode(file);
-  } catch (err) {
-    return callback(null, error('failed to decode song: ' + song));
-  }
-  if (!result) return callback(null, error('failed to decode song: ' + song));
-  var data = result.channelData[0];
-  var min = _.min(data);
-  var max = _.max(data);
-  data = _.map(data, (x) => Math.trunc((x - min) * 4095.5 * (max - min)));
-  // TODO bitwise OR with DAC CS
-  callback(data);
+  fs.readFile('./songs/' + song, (err, data) => {
+    if (err) return callback(null, error('failed to read song: ' + song));
+    data = _.split(data, ',');
+    callback(data);
+  });
 }
 
 var server = net.createServer((socket) => {
   socket.setEncoding('utf8');
   socket.on('data', (data) => {
-    console.log(data);
-    get_song_bytes(_.trimEnd('duwc.wav'), (data, err) => {
+    get_song_bytes(_.trimEnd(data), (data, err) => {
       if (err) {
         socket.write('failure');
       } else {
         function send_data(data) {
-          if (playing) {
-            socket.write('' + _.head(_.head(data)));
-          }
+          if (playing) socket.write('' + _.head(_.head(data)));
           if (_.size(data) > 1) setTimeout(() => { send_data(playing ? _.tail(data) : data); }, 0);
         }
         send_data(_.chunk(data, CHUNK_SIZE));
