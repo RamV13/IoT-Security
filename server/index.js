@@ -11,6 +11,7 @@ var lineReader = require('readline');
 var _ = require('lodash');
 
 var AsyncLock = require('async-lock');
+var sleep = require('system-sleep');
 
 // TODO authorization
 
@@ -27,9 +28,11 @@ var playing = false;
 // SOCKET
 
 const CHUNK_SIZE = 1; // TODO calculate optimal chunk size
-const PLAYING_DELAY = 1000;
-const DATA_DELAY = 100;
-const CHUNK_DELAY = 1000;
+const PLAYING_DELAY = 1;
+const DATA_DELAY = 1;
+const CHUNK_DELAY = 1;
+
+var read_stream;
 
 /**
  * Retrieve an array of data bytes from a WAV file given a song in a format
@@ -37,15 +40,18 @@ const CHUNK_DELAY = 1000;
  */
 function get_song_bytes(song, callback) {
   var buffer = [];
-  lineReader
-    .createInterface({input: fs.createReadStream('./songs/' + song)})
-    .on('line', (line) => {
-      buffer.push(line);
-      if (_.size(buffer) == CHUNK_SIZE) {
-        callback(buffer);
-        buffer = [];
-      }
-    });
+  read_stream = fs.createReadStream('./songs/' + song);
+  var rl = lineReader.createInterface({input: read_stream})
+  rl.on('line', (line) => {
+    buffer.push(line);
+    if (_.size(buffer) == CHUNK_SIZE) {
+      callback(buffer);
+      buffer = [];
+      rl.pause();
+      sleep(CHUNK_DELAY);
+      rl.resume();
+    }
+  });
 }
 
 var datas = [];
@@ -57,11 +63,16 @@ var primary_socket;
 function run() {
   datas_lock.acquire(DATAS_KEY, (unlock) => {
     function send_data(data) {
-      if (playing) primary_socket.write('' + _.head(data));
+      if (playing) {
+        console.log(_.head(data));
+        primary_socket.write('' + _.head(data));
+      }
       if (_.size(data) > 1) setTimeout(() => { send_data(playing ? _.tail(data) : data); }, playing ? DATA_DELAY : PLAYING_DELAY);
     }
-    send_data(_.head(datas));
-    datas = _.tail(datas);
+    if (!_.isEmpty(datas)) {
+      send_data(_.head(datas));
+      datas = _.tail(datas);
+    }
     setTimeout(run, CHUNK_DELAY);
     unlock();
   });
