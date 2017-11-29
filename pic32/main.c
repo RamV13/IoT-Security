@@ -180,16 +180,22 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
         static bool high = false;
         static int i;
         for (i = ptr - res + 1; i < ptr - res + 1 + size; i++) {
-          if ((res[i] >> 6) % 2 == 0) {
-            num |= res[i];
+          res[i] = (res[i] & 0b01111111);
+          if ((res[i] >> 6) == 0) {
+            num = num + (res[i] & 0b00111111);
             low = true;
           } else {
-            num |= (res[i] & 0b0111111) << 6;
+            num = num + ((res[i] & 0b00111111) << 6);
             high = true;
           }
 
           if (low == true && high == true) {
             table[table_index++] = DAC_config_chan_A | num;
+            if (table_index == 2) {
+              tft_setCursor(10, 10);
+            }
+
+
             // table[table_index + 1] = table[table_index++]; // downsampling by 2x
 
             if (table_index == BUFFER_SIZE) {
