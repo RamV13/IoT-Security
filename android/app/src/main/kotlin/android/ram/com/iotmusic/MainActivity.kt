@@ -1,6 +1,7 @@
 package android.ram.com.iotmusic
 
 import android.app.Activity
+import android.content.Context
 import android.os.Bundle
 import android.os.Looper
 import org.jetbrains.anko.*
@@ -10,7 +11,20 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
 
     companion object {
-        private val IP = "http://104.131.124.11:3001"
+        // private val IP = "104.131.124.11"
+        private val IP = "10.148.1.195"
+        private val PORT = 3001
+
+        private fun send(context: Context, route: String) {
+            thread {
+                try {
+                    khttp.get("http://$IP:$PORT/$route")
+                } catch (e: Exception) {
+                    Looper.prepare()
+                    context.toast("server error")
+                }
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,30 +33,18 @@ class MainActivity : Activity() {
         gridLayout {
             padding = dip(20)
 
+            val mainContext = context
+
             verticalLayout {
                 button("Play") {
                     onClick {
-                        thread {
-                            try {
-                                khttp.get(IP + "/play")
-                            } catch (e: Exception) {
-                                Looper.prepare()
-                                toast("server error")
-                            }
-                        }
+                        send(mainContext, "play")
                     }
                 }.lparams(width = 500, height = 750)
 
                 button("Skip") {
                     onClick {
-                        thread {
-                            try {
-                                khttp.get(IP + "/skip")
-                            } catch (e: Exception) {
-                                Looper.prepare()
-                                toast("server error")
-                            }
-                        }
+                        send(mainContext, "skip")
                     }
                 }.lparams(width = 500, height = 750)
             }
@@ -50,27 +52,13 @@ class MainActivity : Activity() {
             verticalLayout {
                 button("Pause") {
                     onClick {
-                        thread {
-                            try {
-                                khttp.get(IP + "/pause")
-                            } catch (e: Exception) {
-                                Looper.prepare()
-                                toast("server error")
-                            }
-                        }
+                        send(mainContext, "pause")
                     }
                 }.lparams(width = 500, height = 750)
 
                 button("Back") {
                     onClick {
-                        thread {
-                            try {
-                                khttp.get(IP + "/prev")
-                            } catch (e: Exception) {
-                                Looper.prepare()
-                                toast("server error")
-                            }
-                        }
+                        send(mainContext, "prev")
                     }
                 }.lparams(width = 500, height = 750)
             }
