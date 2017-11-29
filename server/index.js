@@ -33,7 +33,7 @@ var SCORE_SOUND = [14336, 14336, 14336, 14336, 14336, 14336, 14336, 14336, 14336
 const CHUNK_SIZE = 1;
 const PLAYING_DELAY = 1;
 const DATA_DELAY = 1;
-const CHUNK_DELAY = 10;
+const CHUNK_DELAY = 5;
 
 var read_stream;
 
@@ -43,11 +43,12 @@ var read_stream;
  */
 function get_song_bytes(song, callback) {
   var buffer = [];
-/*
+
   read_stream = fs.createReadStream('./songs/' + song);
   var rl = lineReader.createInterface({input: read_stream})
   rl.on('line', (line) => {
-    buffer.push(line);
+    var data = _.split(line, ',');
+    buffer.push(String.fromCharCode(data[0]) + String.fromCharCode(data[1]));
     if (_.size(buffer) == CHUNK_SIZE) {
       callback(buffer);
       buffer = [];
@@ -56,7 +57,7 @@ function get_song_bytes(song, callback) {
       rl.resume();
     }
   });
-*/
+/*
   _.forEach(SCORE_SOUND, (x) => {
     buffer.push(x);
     if (_.size(buffer) == CHUNK_SIZE) {
@@ -64,7 +65,7 @@ function get_song_bytes(song, callback) {
       buffer = [];
     }
   });
-
+*/
 /*
   function push(x) {
     buffer.push(x);
@@ -111,7 +112,7 @@ function run() {
 }
 
 var server = net.createServer((socket) => {
-  socket.setEncoding('utf8');
+  socket.setEncoding('ascii');
   primary_socket = socket;
   run();
   socket.on('data', (data) => {
