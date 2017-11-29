@@ -93,7 +93,7 @@ function run() {
       if (playing) {
         count++;
         console.log(count + ': ' + _.head(data));
-        primary_socket.write(_.head(data) + '|');
+        primary_socket.write(_.head(data));
       }
       if (_.size(data) > 1) {
         setTimeout(() => { send_data(playing ? _.tail(data) : data); }, playing ? DATA_DELAY : PLAYING_DELAY);
