@@ -613,7 +613,7 @@ do { static int i ; \
 #define pcr()    printf( '\r')
 #define crlf     putchar(0x0a); putchar(0x0d);
 #define backspace 0x7f // make sure your backspace matches this!
-#define max_chars 64 // for input/output buffer
+#define max_chars 10000 // for input/output buffer
 //====================================================================
 // build a string from the UART2 /////////////
 //////////////////////////////////////////////
@@ -627,7 +627,7 @@ int PT_GetSerialBuffer(struct pt *pt)
     PT_BEGIN(pt);
 
     num_char = 0;
-    while(num_char < max_chars) {
+    while (num_char < max_chars) {
         // get the character
         // yield until there is a valid character so that other
         // threads can execute
