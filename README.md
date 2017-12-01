@@ -1,2 +1,2 @@
-# IoT-Music
-IoT Music Platform
+# IoT-Security
+IoT Security Platform
