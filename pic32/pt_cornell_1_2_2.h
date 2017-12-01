@@ -613,7 +613,7 @@ do { static int i ; \
 #define pcr()    printf( '\r')
 #define crlf     putchar(0x0a); putchar(0x0d);
 #define backspace 0x7f // make sure your backspace matches this!
-#define max_chars 10000 // for input/output buffer
+#define max_chars 3000 // for input/output buffer
 //====================================================================
 // build a string from the UART2 /////////////
 //////////////////////////////////////////////
