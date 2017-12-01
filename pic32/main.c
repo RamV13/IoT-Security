@@ -48,10 +48,21 @@ volatile unsigned int DAC_data; // output value
 #define SPI_CHANNEL       SPI_CHANNEL2
 
 // #define SCORE_SOUND_SIZE  8192 // size of +1 score sound
-#define RES_SIZE    3000
+#define RES_SIZE    2000
+#define NUM_RES     5
+char res_table[NUM_RES][RES_SIZE];
+volatile bool res_valids[NUM_RES];
+unsigned int read_res_index;
+unsigned int write_res_index;
+
 #define BUFFER_SIZE 512
-unsigned short tableA[BUFFER_SIZE];
-unsigned short tableB[BUFFER_SIZE];
+#define NUM_TABLES  10
+unsigned short tables[NUM_TABLES][BUFFER_SIZE];
+volatile bool valids[NUM_TABLES];
+unsigned short play_table_index = 1;
+unsigned short write_table_index;
+bool playing = false;
+
 #define dma_set_transfer(table, size)  DmaChnSetTxfer(DMA_CHANNEL, table, \
                                          (void*) &SPI2BUF, size * 2, 2, 2);
 #define dma_start_transfer()           DmaChnEnable(DMA_CHANNEL);
@@ -60,7 +71,7 @@ unsigned short tableB[BUFFER_SIZE];
   dma_start_transfer(); \
 }
 
-static struct pt pt_serial, pt_live; // thread control structs
+static struct pt pt_serial, pt_parse, pt_dma; // thread control structs
 static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
 
 // UART Macros
@@ -131,162 +142,112 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
   } \
 }
 
-void __ISR(_DMA_2_VECTOR, ipl0) __DMA2Interrupt(void) {
-  while (1) {
-    tft_fillScreen(ILI9340_RED);
-  }
-  exit(0);
-}
-
 // Serial thread
 static PT_THREAD (protothread_serial(struct pt *pt)) {
   PT_BEGIN(pt);
 
-  char res[RES_SIZE];
-
-  tft_setTextColor(ILI9340_WHITE);
-
+  // initialize esp and TCP connection
+  char buffer[32];
   uart_send("ATE0"); // disable echo
-  wait_recv(res, "OK");
+  wait_recv(buffer, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT");
-  wait_recv(res, "OK");
+  wait_recv(buffer, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPMUX=0");
-  wait_recv(res, "OK");
+  wait_recv(buffer, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   // uart_send("AT+CIPSTART=\"TCP\",\"104.131.124.11\",3002");
-  uart_send("AT+CIPSTART=\"TCP\",\"10.148.0.20\",3002");
-  wait_recv(res, "OK");
+  uart_send("AT+CIPSTART=\"TCP\",\"10.148.12.169\",3002");
+  wait_recv(buffer, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPSEND=7");
-  wait_recv_char(res, ">");
+  wait_recv_char(buffer, ">");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send_raw("start\n");
-  wait_recv(res, "SEND OK");
+  wait_recv(buffer, "SEND OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
 
-  tft_setTextSize(2);
-  tft_setTextColor(ILI9340_WHITE);
-
-  static int table_index = 0;
-  static bool table_toggle = false;
-
   while (1) {
-    static int count = 0;
-    static int num_lines = 0;
-    while (1) {
-      uart_recv(res);
-      char* ptr = strchr(res, ':');
-      if (ptr) {
-        unsigned int size;
-        sscanf(res, "+IPD,%u:", &size);
-
-        static short num = 0;
-        static bool low = false;
-        static bool high = false;
-        static int i;
-        for (i = ptr - res + 1; i < ptr - res + 1 + size; i++) {
-          if ((res[i] & 0b01000000) == 0) {
-            num |= res[i] & 0b00111111;
-            low = true;
-          } else {
-            num |= (res[i] & 0b00111111) << 6;
-            high = true;
-          }
-
-          if (low == true && high == true) {
-            if (table_toggle) {
-              tableA[table_index++] = DAC_config_chan_A | num;
-            } else {
-              tableB[table_index++] = DAC_config_chan_A | num;
-            }
-
-            if (table_index == BUFFER_SIZE) {
-              play_sound(table_toggle ? tableA : tableB);
-              table_toggle = !table_toggle;
-              table_index = 0;
-            }
-
-            num = 0;
-            low = false;
-            high = false;
-          }
-        }
-
-        // static char num[5];
-        // static int num_index = 0;
-        // static int i = 0;
-        // for (i = ptr - res + 1; i < ptr - res + 1 + size; i++) {
-        //   if (res[i] == '|') {
-        //     num[num_index] = 0;
-        //     num_index = 0;
-        //     table[table_index++] = DAC_config_chan_A | atoi(num);
-        //     // table[table_index + 1] = table[table_index++]; // downsampling by 2x
-        //     if (table_index == BUFFER_SIZE) {
-        //       play_sound();
-        //       table_index = 0;
-        //     }
-        //   } else {
-        //     num[num_index++] = res[i];
-        //   }
-        // }
-
-        // strncpy(res, ++ptr, size);
-        // res[size] = 0;
-        // char* data_point = strtok(res, "|");
-        // while (data_point != NULL) {
-        //   table[table_index] = DAC_config_chan_A | atoi(data_point);
-        //   table_index++;
-
-        //   if (table_index == BUFFER_SIZE) {
-            
-        //     tft_fillScreen(ILI9340_GREEN);
-        //     int i;
-        //     tft_setTextSize(1);
-        //     for (i = 0; i < table_index; i++) {
-        //       tft_setCursor(10, 10 + i * 10);
-        //       sprintf(res, "%d", table[i]);
-        //       tft_writeString(res);
-        //     }
-            
-        //     play_sound();
-        //     /*
-        //     while (1) {
-        //       PT_YIELD_TIME_msec(10000);
-        //       play_sound();
-        //     }
-        //     */
-        //     table_index = 0;
-        //   }
-
-        //   data_point = strtok(NULL, "|");
-        // }
-        break;
-      }
-      count++;
-      if (count == TIMEOUT) {
-        tft_fillScreen(ILI9340_RED);
-        break;
-      }
-    }
-  }
-
-  while(1) {
-    PT_YIELD_TIME_msec(1000);
+    uart_recv(res_table[write_res_index]);
+    res_valids[write_res_index++] = true;
+    if (write_res_index == NUM_RES) write_res_index = 0;
   }
 
   PT_END(pt);
 }
 
-static PT_THREAD (protothread_live(struct pt *pt)) {
+static PT_THREAD (protothread_parse(struct pt *pt)) {
+  PT_BEGIN(pt);
+
+  static unsigned int table_index = 0;
+  static int timeout_count;
+
+  while (1) {
+    PT_YIELD_UNTIL(pt, res_valids[read_res_index]);
+    char* ptr = strchr(res_table[read_res_index], ':');
+    if (ptr) {
+      unsigned int size;
+      sscanf(res_table[read_res_index], "+IPD,%u:", &size);
+
+      static short num = 0;
+      static bool low = false;
+      static bool high = false;
+      static int i;
+      for (i = ptr - res_table[read_res_index] + 1; i < ptr - res_table[read_res_index] + 1 + size; i++) {
+        if ((res_table[read_res_index][i] & 0b01000000) == 0) {
+          num |= res_table[read_res_index][i] & 0b00111111;
+          low = true;
+        } else {
+          num |= (res_table[read_res_index][i] & 0b00111111) << 6;
+          high = true;
+        }
+
+        if (low == true && high == true) {
+          tables[write_table_index][table_index++] = DAC_config_chan_A | num;
+
+          if (table_index == BUFFER_SIZE) {
+            if (playing == false) {
+              play_sound(tables[0]);
+              playing = true;
+            }
+            table_index = 0;
+            valids[write_table_index++] = true;
+            if (write_table_index == NUM_TABLES) write_table_index = 0;
+          }
+
+          num = 0;
+          low = false;
+          high = false;
+        }
+      }
+      break;
+    }
+
+    valids[read_res_index++] = false;
+    if (read_res_index == RES_SIZE) read_res_index = 0;
+
+    timeout_count++;
+    if (timeout_count == TIMEOUT) {
+      tft_fillScreen(ILI9340_RED);
+      PT_EXIT(pt);
+      break;
+    }
+  }
+
+  PT_END(pt);
+}
+
+static PT_THREAD (protothread_dma(struct pt *pt)) {
   PT_BEGIN(pt);
 
   while (1) {
-    tft_fillRoundRect(10, 200, 10, 10, 1, ILI9340_BLUE);
-    PT_YIELD_TIME_msec(1000);
-    tft_fillRoundRect(10, 200, 10, 10, 1, ILI9340_GREEN);
-    PT_YIELD_TIME_msec(1000);
+    PT_YIELD_UNTIL(pt, DmaChnGetEvFlags(DMA_CHANNEL) & DMA_EV_BLOCK_DONE);
+    DmaChnClrEvFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
+    PT_YIELD_UNTIL(pt, valids[play_table_index]);
+    play_sound(tables[play_table_index]);
+    valids[play_table_index++] = false;
+    if (play_table_index == NUM_TABLES) play_table_index = 0;
   }
 
   PT_END(pt);
@@ -307,18 +268,11 @@ void main(void) {
   // SPI setup
   SpiChnOpen(SPI_CHANNEL, SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | \
              SPI_OPEN_CKE_REV | SPICON_FRMEN | SPICON_FRMPOL, 2);
-
   // DMA setup
-  DMACONbits.ON = 1;
   DmaChnOpen(DMA_CHANNEL, 0, DMA_OPEN_DEFAULT);
   DmaChnSetEventControl(DMA_CHANNEL, DMA_EV_START_IRQ(_TIMER_2_IRQ));
   DmaChnSetEvEnableFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
-  DCH2INTbits.CHBCIE = 1;
-  DmaChnIntEnable(DMA_CHANNEL);
-  INTEnable(INT_SOURCE_DMA(2), INT_ENABLED);
-  DCH2INTSET = 0x00090000;
-  DCH2INTCLR = 0x000000ff;
-  IFS1CLR = 0x00010000;
+  DmaChnClrEvFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
 
   PPSOutput(2, RPB5, SDO2); // SPI -> DAC
   PPSOutput(4, RPB10, SS2); // RB9 -> DAC CS
@@ -327,14 +281,18 @@ void main(void) {
   tft_init_hw();
   tft_begin();
   tft_fillScreen(ILI9340_BLACK);
+  tft_setTextSize(2);
+  tft_setTextColor(ILI9340_WHITE);
   tft_setRotation(0); // 240x320 vertical display
 
   // init the threads
   PT_INIT(&pt_serial);
-  PT_INIT(&pt_live);
+  PT_INIT(&pt_parse);
+  PT_INIT(&pt_dma);
 
   while (1){
     PT_SCHEDULE(protothread_serial(&pt_serial));
-    // PT_SCHEDULE(protothread_live(&pt_live));
+    PT_SCHEDULE(protothread_parse(&pt_parse));
+    PT_SCHEDULE(protothread_dma(&pt_dma));
   }
 }
