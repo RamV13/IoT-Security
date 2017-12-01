@@ -43,17 +43,19 @@ volatile unsigned int DAC_data; // output value
 // volatile int sin_table[sine_table_size];
 
 
-#define TIMER_LIMIT       3628/*907*/ // 40 MHz / 44100 = 907, 40 MHz / 11025 = 3628
+#define TIMER_LIMIT       907/*907*/ // 40 MHz / 44100 = 907, 40 MHz / 11025 = 3628
 #define DMA_CHANNEL       DMA_CHANNEL2
 #define SPI_CHANNEL       SPI_CHANNEL2
 
 // #define SCORE_SOUND_SIZE  8192 // size of +1 score sound
+#define RES_SIZE    3000
 #define BUFFER_SIZE 512
-unsigned short table[BUFFER_SIZE];
+unsigned short tableA[BUFFER_SIZE];
+unsigned short tableB[BUFFER_SIZE];
 #define dma_set_transfer(table, size)  DmaChnSetTxfer(DMA_CHANNEL, table, \
                                          (void*) &SPI2BUF, size * 2, 2, 2);
 #define dma_start_transfer()           DmaChnEnable(DMA_CHANNEL);
-#define play_sound()             { \
+#define play_sound(table)             { \
   dma_set_transfer(table, BUFFER_SIZE); \
   dma_start_transfer(); \
 }
@@ -129,11 +131,16 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
   } \
 }
 
+void __ISR(_DMA2_VECTOR, ipl0) DmaHandler(void) {
+  tft_fillScreen(ILI9340_RED);
+  exit(0);
+}
+
 // Serial thread
 static PT_THREAD (protothread_serial(struct pt *pt)) {
   PT_BEGIN(pt);
 
-  char res[10000];
+  char res[RES_SIZE];
 
   tft_setTextColor(ILI9340_WHITE);
 
@@ -147,7 +154,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   wait_recv(res, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   // uart_send("AT+CIPSTART=\"TCP\",\"104.131.124.11\",3002");
-  uart_send("AT+CIPSTART=\"TCP\",\"10.148.1.122\",3002");
+  uart_send("AT+CIPSTART=\"TCP\",\"10.148.0.20\",3002");
   wait_recv(res, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPSEND=7");
@@ -161,6 +168,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   tft_setTextColor(ILI9340_WHITE);
 
   static int table_index = 0;
+  static bool table_toggle = false;
 
   while (1) {
     static int count = 0;
@@ -177,7 +185,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
         static bool high = false;
         static int i;
         for (i = ptr - res + 1; i < ptr - res + 1 + size; i++) {
-          if ((res[i] >> 6) % 2 == 0) {
+          if ((res[i] & 0b01000000) == 0) {
             num |= res[i] & 0b00111111;
             low = true;
           } else {
@@ -186,11 +194,15 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
           }
 
           if (low == true && high == true) {
-            table[table_index++] = DAC_config_chan_A | num;
-            // table[table_index + 1] = table[table_index++]; // downsampling by 2x
+            if (table_toggle) {
+              tableA[table_index++] = DAC_config_chan_A | num;
+            } else {
+              tableB[table_index++] = DAC_config_chan_A | num;
+            }
 
             if (table_index == BUFFER_SIZE) {
-              play_sound();
+              play_sound(table_toggle ? tableA : tableB);
+              table_toggle = !table_toggle;
               table_index = 0;
             }
 
@@ -297,6 +309,7 @@ void main(void) {
   // DMA setup
   DmaChnOpen(DMA_CHANNEL, 0, DMA_OPEN_DEFAULT);
   DmaChnSetEventControl(DMA_CHANNEL, DMA_EV_START_IRQ(_TIMER_2_IRQ));
+  DCH2INTbits.CHBCIE = 1;
 
   PPSOutput(2, RPB5, SDO2); // SPI -> DAC
   PPSOutput(4, RPB10, SS2); // RB9 -> DAC CS
