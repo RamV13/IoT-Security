@@ -131,8 +131,10 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
   } \
 }
 
-void __ISR(_DMA2_VECTOR, ipl0) DmaHandler(void) {
-  tft_fillScreen(ILI9340_RED);
+void __ISR(_DMA_2_VECTOR, ipl0) __DMA2Interrupt(void) {
+  while (1) {
+    tft_fillScreen(ILI9340_RED);
+  }
   exit(0);
 }
 
@@ -307,9 +309,16 @@ void main(void) {
              SPI_OPEN_CKE_REV | SPICON_FRMEN | SPICON_FRMPOL, 2);
 
   // DMA setup
+  DMACONbits.ON = 1;
   DmaChnOpen(DMA_CHANNEL, 0, DMA_OPEN_DEFAULT);
   DmaChnSetEventControl(DMA_CHANNEL, DMA_EV_START_IRQ(_TIMER_2_IRQ));
+  DmaChnSetEvEnableFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
   DCH2INTbits.CHBCIE = 1;
+  DmaChnIntEnable(DMA_CHANNEL);
+  INTEnable(INT_SOURCE_DMA(2), INT_ENABLED);
+  DCH2INTSET = 0x00090000;
+  DCH2INTCLR = 0x000000ff;
+  IFS1CLR = 0x00010000;
 
   PPSOutput(2, RPB5, SDO2); // SPI -> DAC
   PPSOutput(4, RPB10, SS2); // RB9 -> DAC CS
