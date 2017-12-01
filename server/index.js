@@ -117,7 +117,7 @@ var server = net.createServer((socket) => {
   primary_socket = socket;
   run();
   socket.on('data', (data) => {
-    console.log('From PIC: ' + data);
+    console.log('PIC: ' + data);
     get_song_bytes((data, err) => {
       if (err) return console.error('song byte conversion failure');
       datas_lock.acquire(DATAS_KEY, (unlock) => {
