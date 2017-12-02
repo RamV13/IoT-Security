@@ -42,12 +42,12 @@ var chart = new Chart(chartElement.getContext('2d'), {
   }
 });
 
-// TODO fix bug with holes in graph
+// TODO allow for different time scales
 
 var dataIndex = 0;
 
 function updateData() {
-  if (chart.data.datasets[0].data.length <= dataIndex) {
+  if (!chart.data.datasets[0].data[dataIndex]) {
     chart.data.labels[dataIndex] = dataIndex;
     chart.data.datasets[0].data[dataIndex] = 0;
     chart.update();
