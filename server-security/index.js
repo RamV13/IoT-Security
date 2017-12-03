@@ -17,17 +17,23 @@ const start = new Date().getTime();
 
 var data = [];
 var unsentData = [0];
-var alarmed = true;
+var armed = false;
+
+const ALARM_KEY = '!';
+const DISARM_KEY = '-';
+
+var primary_socket;
 
 var server = net.createServer((socket) => {
+  primary_socket = socket;
   socket.setEncoding('ascii');
   socket.on('data', (msg) => {
     console.log('PIC: ' + msg);
     if (msg.includes('event')) {
-      if (alarmed) {
-        socket.write('!\n');
+      if (armed) {
+        socket.write(ALARM_KEY + '\n');
       } else {
-        socket.write('-\n');
+        socket.write(DISARM_KEY + '\n');
       }
       if (client) {
         var value = Math.trunc((new Date().getTime() - start) / 1000);
@@ -57,6 +63,31 @@ app.get('/data', (req, res) => {
     unsentData = _.concat(data, unsentData);
     data = [];
   });
+});
+
+app.get('/force', (req, res) => {
+  armed = true;
+  if (primary_socket) {
+    primary_socket.write(ALARM_KEY + '\n');
+    res.send();
+  } else {
+    res.status(503).send();
+  }
+});
+
+app.get('/arm', (req, res) => {
+  armed = true;
+  res.send();
+});
+
+app.get('/disarm', (req, res) => {
+  armed = false;
+  if (primary_socket) {
+    primary_socket.write(DISARM_KEY + '\n');
+    res.send();
+  } else {
+    res.status(503).send();
+  }
 });
 
 app.listen(3001);

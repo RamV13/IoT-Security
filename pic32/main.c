@@ -56,8 +56,9 @@ bool playing = false;
                                          (void*) &SPI2BUF, size * 2, 2, 2);
 #define dma_start_transfer()           DmaChnEnable(DMA_CHANNEL);
 #define sound_alarm()                  dma_set_transfer(ALARM_SOUND, ALARM_SOUND_SIZE); dma_start_transfer();
+#define stop_alarm()                   DmaChnAbortTxfer(DMA_CHANNEL);
 
-static struct pt pt_serial; // thread control structs
+static struct pt pt_serial, pt_receive; // thread control structs
 static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
 
 // UART Macros
@@ -130,6 +131,8 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
   } \
 }
 
+volatile bool start = false;
+
 // Serial thread
 static PT_THREAD (protothread_serial(struct pt *pt)) {
   PT_BEGIN(pt);
@@ -150,8 +153,9 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   wait_recv(buffer, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
 
+  start = true;
+
   static bool edge = false;
-  static bool alarmed = false;
   while (1) {
     const unsigned long int value = ReadADC10(0);
     if (SENSOR_DEBUG) {
@@ -164,26 +168,42 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
       if (edge == false) {
         edge = true;
         uart_send("AT+CIPSEND=7");
-        wait_recv_char(buffer, ">");
+        PT_YIELD_TIME_msec(10);
         if (DEBUG) tft_fillScreen(ILI9340_BLACK);
         uart_send_raw("event\n");
-        wait_recv(buffer, "SEND OK");
+        PT_YIELD_TIME_msec(10);
         if (DEBUG) tft_fillScreen(ILI9340_BLACK);
-        while (1) {
-          uart_recv(buffer);
-          if (strchr(buffer, '!')) {
-            if (!alarmed) sound_alarm();
-            alarmed = true;
-            break;
-          } else if (strchr(buffer, '-')) {
-            break;
-          }
-        }
       }
     } else {
       edge = false;
     }
     PT_YIELD_TIME_msec(10);
+  }
+
+  PT_END(pt);
+}
+
+static PT_THREAD (protothread_receive(struct pt *pt)) {
+  PT_BEGIN(pt);
+
+  char buffer[32]; // TODO try static
+
+  while (!start) {
+    PT_YIELD_TIME_msec(10);
+  }
+
+  static bool alarmed = false;
+  while (1) {
+    uart_recv(buffer);
+    if (strchr(buffer, '!')) {
+      if (!alarmed) sound_alarm();
+      alarmed = true;
+      break;
+    } else if (strchr(buffer, '-')) {
+      if (alarmed) stop_alarm();
+      alarmed = false;
+      break;
+    }
   }
 
   PT_END(pt);
@@ -257,8 +277,10 @@ void main(void) {
 
   // init the threads
   PT_INIT(&pt_serial);
+  PT_INIT(&pt_receive);
 
   while (1){
     PT_SCHEDULE(protothread_serial(&pt_serial));
+    PT_SCHEDULE(protothread_receive(&pt_receive));
   }
 }
