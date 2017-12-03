@@ -17,12 +17,18 @@ const start = new Date().getTime();
 
 var data = [];
 var unsentData = [0];
+var alarmed = true;
 
 var server = net.createServer((socket) => {
   socket.setEncoding('ascii');
   socket.on('data', (msg) => {
     console.log('PIC: ' + msg);
     if (msg.includes('event')) {
+      if (alarmed) {
+        socket.write('!\n');
+      } else {
+        socket.write('-\n');
+      }
       if (client) {
         var value = Math.trunc((new Date().getTime() - start) / 1000);
         client.send('' + value);

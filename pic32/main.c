@@ -22,32 +22,19 @@
 #include <stdbool.h>
 #include <math.h>
 
-////////////////////////////////////
-// DAC ISR
-// A-channel, 1x, active
+#define IP_ADDRESS  "10.148.10.225" // 104.131.124.11
+
+#define DISTANCE_THRESHOLD  150
+
 #define DAC_config_chan_A 0b0011000000000000
-// B-channel, 1xDAC_config, active
 #define DAC_config_chan_B 0b1011000000000000
-// DDS constant
-// #define two32 4294967296.0 // 2^32 
-// #define Fs 100000
 
-//== Timer 2 interrupt handler ===========================================
 volatile unsigned int DAC_data; // output value
-// volatile SpiChannel spiChn = SPI_CHANNEL2; // the SPI channel to use
-// volatile int spiClkDiv = 4; // 10 MHz max speed for port expander!!
-// DDS units
-// volatile unsigned int phase_accum_main, phase_incr_main=400.0*two32/Fs;
-// DDS sine table
-// #define sine_table_size 256
-// volatile int sin_table[sine_table_size];
 
-
-#define TIMER_LIMIT       907/*907*/ // 40 MHz / 44100 = 907, 40 MHz / 11025 = 3628
+#define TIMER_LIMIT       3628/*907*/ // 40 MHz / 44100 = 907, 40 MHz / 11025 = 3628
 #define DMA_CHANNEL       DMA_CHANNEL2
 #define SPI_CHANNEL       SPI_CHANNEL2
 
-// #define SCORE_SOUND_SIZE  8192 // size of +1 score sound
 #define RES_SIZE    2000
 #define NUM_RES     5
 char res_table[NUM_RES][RES_SIZE];
@@ -55,30 +42,31 @@ volatile bool res_valids[NUM_RES];
 unsigned int read_res_index;
 unsigned int write_res_index;
 
-#define BUFFER_SIZE 512
-#define NUM_TABLES  10
+#define BUFFER_SIZE  512
+#define NUM_TABLES   10
 unsigned short tables[NUM_TABLES][BUFFER_SIZE];
 volatile bool valids[NUM_TABLES];
 unsigned short play_table_index = 1;
 unsigned short write_table_index;
 bool playing = false;
 
+#include "alarm.h"
+
 #define dma_set_transfer(table, size)  DmaChnSetTxfer(DMA_CHANNEL, table, \
                                          (void*) &SPI2BUF, size * 2, 2, 2);
 #define dma_start_transfer()           DmaChnEnable(DMA_CHANNEL);
-#define play_sound(table)             { \
-  dma_set_transfer(table, BUFFER_SIZE); \
-  dma_start_transfer(); \
-}
+#define sound_alarm()                  dma_set_transfer(ALARM_SOUND, ALARM_SOUND_SIZE); dma_start_transfer();
 
-static struct pt pt_serial, pt_parse, pt_dma; // thread control structs
+static struct pt pt_serial; // thread control structs
 static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
 
 // UART Macros
 
 #define TIMEOUT  10
+#define RECEIVE_TIMEOUT  50
 
 #define DEBUG  false
+#define SENSOR_DEBUG  false
 
 #define uart_send(msg) { \
   sprintf(PT_send_buffer, msg "\r\n"); \
@@ -146,8 +134,9 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
 static PT_THREAD (protothread_serial(struct pt *pt)) {
   PT_BEGIN(pt);
 
-  // initialize esp and TCP connection
   char buffer[32];
+
+  // initialize esp and TCP connection
   uart_send("ATE0"); // disable echo
   wait_recv(buffer, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
@@ -157,97 +146,44 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   uart_send("AT+CIPMUX=0");
   wait_recv(buffer, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
-  // uart_send("AT+CIPSTART=\"TCP\",\"104.131.124.11\",3002");
-  uart_send("AT+CIPSTART=\"TCP\",\"10.148.12.169\",3002");
+  uart_send("AT+CIPSTART=\"TCP\",\""IP_ADDRESS"\",3002");
   wait_recv(buffer, "OK");
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
-  uart_send("AT+CIPSEND=7");
-  wait_recv_char(buffer, ">");
-  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
-  uart_send_raw("start\n");
-  wait_recv(buffer, "SEND OK");
-  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
 
+  static bool edge = false;
+  static bool alarmed = false;
   while (1) {
-    uart_recv(res_table[write_res_index]);
-    res_valids[write_res_index++] = true;
-    if (write_res_index == NUM_RES) write_res_index = 0;
-  }
-
-  PT_END(pt);
-}
-
-static PT_THREAD (protothread_parse(struct pt *pt)) {
-  PT_BEGIN(pt);
-
-  static unsigned int table_index = 0;
-  static int timeout_count;
-
-  while (1) {
-    PT_YIELD_UNTIL(pt, res_valids[read_res_index]);
-    char* ptr = strchr(res_table[read_res_index], ':');
-    if (ptr) {
-      unsigned int size;
-      sscanf(res_table[read_res_index], "+IPD,%u:", &size);
-
-      static short num = 0;
-      static bool low = false;
-      static bool high = false;
-      static int i;
-      for (i = ptr - res_table[read_res_index] + 1; i < ptr - res_table[read_res_index] + 1 + size; i++) {
-        if ((res_table[read_res_index][i] & 0b01000000) == 0) {
-          num |= res_table[read_res_index][i] & 0b00111111;
-          low = true;
-        } else {
-          num |= (res_table[read_res_index][i] & 0b00111111) << 6;
-          high = true;
-        }
-
-        if (low == true && high == true) {
-          tables[write_table_index][table_index++] = DAC_config_chan_A | num;
-
-          if (table_index == BUFFER_SIZE) {
-            if (playing == false) {
-              play_sound(tables[0]);
-              playing = true;
-            }
-            table_index = 0;
-            valids[write_table_index++] = true;
-            if (write_table_index == NUM_TABLES) write_table_index = 0;
+    const unsigned long int value = ReadADC10(0);
+    if (SENSOR_DEBUG) {
+      tft_fillRoundRect(10, 10, 100, 100, 1, ILI9340_BLACK);
+      tft_setCursor(10, 10);
+      sprintf(buffer, "%d", value);
+      tft_writeString(buffer);
+    }
+    if (value < DISTANCE_THRESHOLD) {
+      if (edge == false) {
+        edge = true;
+        uart_send("AT+CIPSEND=7");
+        wait_recv_char(buffer, ">");
+        if (DEBUG) tft_fillScreen(ILI9340_BLACK);
+        uart_send_raw("event\n");
+        wait_recv(buffer, "SEND OK");
+        if (DEBUG) tft_fillScreen(ILI9340_BLACK);
+        while (1) {
+          uart_recv(buffer);
+          if (strchr(buffer, '!')) {
+            if (!alarmed) sound_alarm();
+            alarmed = true;
+            break;
+          } else if (strchr(buffer, '-')) {
+            break;
           }
-
-          num = 0;
-          low = false;
-          high = false;
         }
       }
-      break;
+    } else {
+      edge = false;
     }
-
-    valids[read_res_index++] = false;
-    if (read_res_index == RES_SIZE) read_res_index = 0;
-
-    timeout_count++;
-    if (timeout_count == TIMEOUT) {
-      tft_fillScreen(ILI9340_RED);
-      PT_EXIT(pt);
-      break;
-    }
-  }
-
-  PT_END(pt);
-}
-
-static PT_THREAD (protothread_dma(struct pt *pt)) {
-  PT_BEGIN(pt);
-
-  while (1) {
-    PT_YIELD_UNTIL(pt, DmaChnGetEvFlags(DMA_CHANNEL) & DMA_EV_BLOCK_DONE);
-    DmaChnClrEvFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
-    PT_YIELD_UNTIL(pt, valids[play_table_index]);
-    play_sound(tables[play_table_index]);
-    valids[play_table_index++] = false;
-    if (play_table_index == NUM_TABLES) play_table_index = 0;
+    PT_YIELD_TIME_msec(10);
   }
 
   PT_END(pt);
@@ -269,13 +205,47 @@ void main(void) {
   SpiChnOpen(SPI_CHANNEL, SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | \
              SPI_OPEN_CKE_REV | SPICON_FRMEN | SPICON_FRMPOL, 2);
   // DMA setup
-  DmaChnOpen(DMA_CHANNEL, 0, DMA_OPEN_DEFAULT);
+  DmaChnOpen(DMA_CHANNEL, 0, DMA_OPEN_AUTO);
   DmaChnSetEventControl(DMA_CHANNEL, DMA_EV_START_IRQ(_TIMER_2_IRQ));
   DmaChnSetEvEnableFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
   DmaChnClrEvFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
 
   PPSOutput(2, RPB5, SDO2); // SPI -> DAC
   PPSOutput(4, RPB10, SS2); // RB9 -> DAC CS
+
+  // ADC setup
+  CloseADC10(); // ensure the ADC is off before setting the configuration
+  // define setup parameters for OpenADC10
+  // Turn module on | ouput in integer | trigger mode auto | enable autosample
+  // ADC_CLK_AUTO
+  //  - Internal counter ends sampling and starts conversion (Auto convert)
+  // ADC_AUTO_SAMPLING_ON
+  //  - sampling begins immediately after last conversion completes
+  /// - SAMP bit is automatically set
+  // ADC_AUTO_SAMPLING_OFF -- Sampling begins with AcquireADC10();
+  #define PARAM1  ADC_FORMAT_INTG16 | ADC_CLK_AUTO | ADC_AUTO_SAMPLING_ON //
+  // define setup parameters for OpenADC10
+  // ADC ref external  | disable offset test | disable scan mode | do 2 sample |
+  //                   use single buf | alternate mode on
+  #define PARAM2  ADC_VREF_AVDD_AVSS | ADC_OFFSET_CAL_DISABLE | ADC_SCAN_OFF | \
+                  ADC_SAMPLES_PER_INT_2 | ADC_ALT_BUF_OFF | ADC_ALT_INPUT_ON
+  // Define setup parameters for OpenADC10
+  // use peripherial bus clock | set sample time | set ADC clock divider
+  // ADC_CONV_CLK_Tcy2 means divide CLK_PB by 2 (max speed)
+  // ADC_SAMPLE_TIME_5 seems to work with a source resistance < 1kohm
+  // SLOW it down a little
+  #define PARAM3 ADC_CONV_CLK_PB | ADC_SAMPLE_TIME_15 | ADC_CONV_CLK_Tcy
+  // define setup parameters for OpenADC10
+  // set AN11 and  as analog inputs
+  #define PARAM4 ENABLE_AN11_ANA | ENABLE_AN5_ANA
+  // define setup parameters for OpenADC10
+  // do not assign channels to scan
+  #define PARAM5 SKIP_SCAN_ALL
+  // configure to sample AN11 and AN5 on MUX A and B
+  SetChanADC10( ADC_CH0_NEG_SAMPLEA_NVREF | ADC_CH0_POS_SAMPLEA_AN11 );
+  // configure ADC using the parameters defined above
+  OpenADC10( PARAM1, PARAM2, PARAM3, PARAM4, PARAM5 );
+  EnableADC10(); // Enable the ADC
 
   // init the display
   tft_init_hw();
@@ -287,12 +257,8 @@ void main(void) {
 
   // init the threads
   PT_INIT(&pt_serial);
-  PT_INIT(&pt_parse);
-  PT_INIT(&pt_dma);
 
   while (1){
     PT_SCHEDULE(protothread_serial(&pt_serial));
-    PT_SCHEDULE(protothread_parse(&pt_parse));
-    PT_SCHEDULE(protothread_dma(&pt_dma));
   }
 }
