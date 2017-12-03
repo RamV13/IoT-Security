@@ -65,7 +65,7 @@ app.get('/data', (req, res) => {
   });
 });
 
-app.get('/force', (req, res) => {
+app.get('/sound', (req, res) => {
   armed = true;
   if (primary_socket) {
     primary_socket.write(ALARM_KEY + '\n');
