@@ -43,12 +43,13 @@ var chart = new Chart(chartElement.getContext('2d'), {
 });
 
 // TODO allow for different time scales
+// TODO synchronize starting time with server
 
 var dataIndex = 0;
 
 function updateData() {
   if (!chart.data.datasets[0].data[dataIndex]) {
-    chart.data.labels[dataIndex] = dataIndex;
+    chart.data.labels[dataIndex] = dataIndex + 's';
     chart.data.datasets[0].data[dataIndex] = 0;
     chart.update();
   }
@@ -63,6 +64,6 @@ new EventSource('/data').onmessage = function(ev) {
   } else {
     chart.data.datasets[0].data[ev.data] = 1;
   }
-  chart.data.labels[ev.data] = ev.data;
+  chart.data.labels[ev.data] = ev.data + 's';
   chart.update();
 }
