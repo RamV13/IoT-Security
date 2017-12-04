@@ -11,8 +11,7 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
 
     companion object {
-        // private val IP = "104.131.124.11"
-        private val IP = "10.148.10.225"
+        private val IP = "104.131.124.11"
         private val PORT = 3001
         var armed = false
         var sounding = false
@@ -33,7 +32,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         verticalLayout {
             val mainContext = context
-            toggleButton {
+            val btn1 = toggleButton {
                 textOff = "Disarmed"
                 textOn = "Armed"
                 onClick {
@@ -41,8 +40,9 @@ class MainActivity : Activity() {
                     send(mainContext, if (armed) "arm" else "disarm")
                 }
             }.lparams(height = 750, width = matchParent)
+            btn1.setText(R.string.toggle_one_off)
 
-            toggleButton {
+            val btn2 = toggleButton {
                 textOff = "Silence"
                 textOn = "Sounding"
                 onClick {
@@ -50,6 +50,7 @@ class MainActivity : Activity() {
                     send(mainContext, if (sounding) "sound" else "disarm")
                 }
             }.lparams(height = 750, width = matchParent)
+            btn2.setText(R.string.toggle_two_off)
         }
     }
 

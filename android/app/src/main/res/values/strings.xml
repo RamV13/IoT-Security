@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">IoT Music</string>
+    <string name="toggle_one_off">Disarmed</string>
+    <string name="toggle_two_off">Silence</string>
 </resources>
