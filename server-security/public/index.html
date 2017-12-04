@@ -8,16 +8,32 @@
   <meta name="description" content="IoT Security System">
   <meta name="author" content="Norman Chen (nyc7), Giacomo DiLiberto (gvd8), Ram Vellanki (rsv32)">
 
-  <!-- Favicon -->
-  <!-- <link rel="icon" type="image/x-icon" href="favicon.jpg"/> -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.blue_grey-red.min.css" />
+  <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
 
   <title>IoT Security</title>
 
 </head>
 
-<body>
+<body style="font-family: 'Roboto', sans-serif">
 
-  <div style="position: relative; margin: auto; width: 70%;">
+  <div class="mdl-card mdl-shadow--4dp" style="margin: 50px auto; width: 20%; padding: 10px">
+    <div class="mdl-card__title">
+      <h2 class="mdl-card__title-text">IoT Security</h2>
+    </div>
+    <div class="mdl-card__actions">
+      <div style="display: flex; justify-content: center">
+        <button id="arm" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" style="-webkit-transition: background-color 0.6s ease-in-out 0s; -moz-transition: background-color 0.6s ease-in-out 0s; -o-transition: background-color 0.6s ease-in-out 0s; transition: background-color 0.6s ease-in-out 0s">Arm</button>
+      </div>
+      <div style="display: flex; justify-content: center; margin-top: 10px">
+        <button id="alarm" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect" style="-webkit-transition: background-color 0.6s ease-in-out 0s; -moz-transition: background-color 0.6s ease-in-out 0s; -o-transition: background-color 0.6s ease-in-out 0s; transition: background-color 0.6s ease-in-out 0s">Sound Alarm</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="position: relative; margin: auto; width: 80%; margin-bottom: 50px">
     <canvas id="chart"></canvas>
   </div>
 
@@ -74,7 +90,7 @@
 
     function updateData() {
       if (!chart.data.datasets[0].data[dataIndex]) {
-        chart.data.labels[dataIndex] = dataIndex + 's';
+        chart.data.labels[dataIndex] = dataIndex;
         chart.data.datasets[0].data[dataIndex] = 0;
         chart.update();
       }
@@ -83,15 +99,34 @@
     }
     updateData();
 
-    new EventSource('/data').onmessage = function(ev) {
+    new EventSource('http://api.ramvellanki.com:3001/data').onmessage = function(ev) {
       if (chart.data.datasets[0].data[ev.data]) {
         chart.data.datasets[0].data[ev.data]++;
       } else {
         chart.data.datasets[0].data[ev.data] = 1;
       }
-      chart.data.labels[ev.data] = ev.data + 's';
+      chart.data.labels[ev.data] = ev.data;
       chart.update();
     }
+
+    var armElement = document.getElementById('arm');
+    var alarmElement = document.getElementById('alarm');
+
+    var armed = false;
+    var alarmed = false;
+
+    armElement.addEventListener('click', function() {
+      // TODO send request
+      armed = !armed;
+      armElement.className = 'mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect ' + (armed ? 'mdl-button--accent' : 'mdl-button--colored');
+      armElement.innerHTML = armed ? 'Disarm' : 'Arm';
+    });
+    alarmElement.addEventListener('click', function() {
+      // TODO send request
+      alarmed = !alarmed;
+      alarmElement.className = 'mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect ' + (alarmed ? 'mdl-button--accent' : 'mdl-button--colored');
+      alarmElement.innerHTML = alarmed ? 'Stop Alarm' : 'Sound Alarm';
+    });
   </script>
 
 </body>
