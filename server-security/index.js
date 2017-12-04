@@ -25,6 +25,7 @@ const DISARM_KEY = '-';
 var primary_socket;
 
 var server = net.createServer((socket) => {
+  console.log('SOCKET CONNECTED');
   primary_socket = socket;
   socket.setEncoding('ascii');
   socket.on('data', (msg) => {
@@ -45,10 +46,9 @@ var server = net.createServer((socket) => {
     }
   });
   socket.on('close', (msg) => {
-    console.log('socket closed');
+    console.log('SOCKET CLOSED');
   });
 });
-
 server.listen(3002);
 
 // APPLICATION
