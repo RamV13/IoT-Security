@@ -54,6 +54,7 @@ server.listen(3002);
 // APPLICATION
 
 app.get('/data', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
   client = SSE(req, res);
   _.forEach(unsentData, (x) => client.send(x + ''));
   data = _.concat(data, unsentData);
