@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define IP_ADDRESS  "10.148.10.225" // 104.131.124.11
+#define IP_ADDRESS  "104.131.124.11"
 
 #define DISTANCE_THRESHOLD  150
 
@@ -63,8 +63,9 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
 
 // UART Macros
 
-#define TIMEOUT  10
+#define TIMEOUT          10
 #define RECEIVE_TIMEOUT  50
+#define ACCURATE         true
 
 #define DEBUG  false
 #define SENSOR_DEBUG  false
@@ -110,6 +111,27 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
   } \
 }
 
+#define wait_recv_either(res, msg1, msg2) { \
+  res[0] = 0; \
+  int count = 0; \
+  int num_lines = 0; \
+  while (strcmp(res, msg1) != 0 && strcmp(res, msg2) != 0) { \
+    uart_recv(res); \
+    if (DEBUG) { \
+      tft_setCursor(0, 10 + num_lines * 10); \
+      tft_writeString(">"); \
+      tft_setCursor(10, 10 + num_lines * 10); \
+      tft_writeString(res); \
+      num_lines++; \
+    } \
+    count++; \
+    if (count == TIMEOUT) { \
+      tft_fillScreen(ILI9340_RED); \
+      break; \
+    } \
+  } \
+}
+
 #define wait_recv_char(res, msg) { \
   res[0] = 0; \
   int count = 0; \
@@ -139,18 +161,38 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
 
   char buffer[32];
 
+  // close any existing connection
+  uart_send("AT+CIPCLOSE");
+  wait_recv_either(buffer, "OK", "ERROR");
+  if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   // initialize esp and TCP connection
   uart_send("ATE0"); // disable echo
-  wait_recv(buffer, "OK");
+  if (ACCURATE) {
+    wait_recv(buffer, "OK");
+  } else {
+    PT_YIELD_TIME_msec(RECEIVE_TIMEOUT);
+  }
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT");
-  wait_recv(buffer, "OK");
+  if (ACCURATE) {
+    wait_recv(buffer, "OK");
+  } else {
+    PT_YIELD_TIME_msec(RECEIVE_TIMEOUT);
+  }
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPMUX=0");
-  wait_recv(buffer, "OK");
+  if (ACCURATE) {
+    wait_recv(buffer, "OK");
+  } else {
+    PT_YIELD_TIME_msec(RECEIVE_TIMEOUT);
+  }
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
   uart_send("AT+CIPSTART=\"TCP\",\""IP_ADDRESS"\",3002");
-  wait_recv(buffer, "OK");
+  if (ACCURATE) {
+    wait_recv(buffer, "OK");
+  } else {
+    PT_YIELD_TIME_msec(RECEIVE_TIMEOUT);
+  }
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
 
   start = true;
