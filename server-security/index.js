@@ -24,6 +24,23 @@ const DISARM_KEY = '-';
 
 var primary_socket;
 
+function timeFromStart() {
+  return Math.trunc((new Date().getTime() - start) / 1000);
+}
+
+function sendBlank() {
+  var value = -timeFromStart();
+  if (value == 0) value = '-0';
+  if (client) {
+    client.send('' + value);
+    data.push(value);
+  } else {
+    unsentData.push(value);
+  }
+  setTimeout(sendBlank, 1000);
+}
+setTimeout(sendBlank);
+
 var server = net.createServer((socket) => {
   console.log('SOCKET CONNECTED');
   primary_socket = socket;
@@ -37,7 +54,7 @@ var server = net.createServer((socket) => {
         socket.write(DISARM_KEY + '\n');
       }
       if (client) {
-        var value = Math.trunc((new Date().getTime() - start) / 1000);
+        var value = timeFromStart();
         client.send('' + value);
         data.push(value);
       } else {
@@ -56,7 +73,7 @@ server.listen(3002);
 app.get('/data', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   client = SSE(req, res);
-  _.forEach(unsentData, (x) => client.send(x + ''));
+  _.forEach(unsentData, (x) => client.send((x == 0 ? '-' : '') + x));
   data = _.concat(data, unsentData);
   unsentData = [];
   client.onClose(() => {
