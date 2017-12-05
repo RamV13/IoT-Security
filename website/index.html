@@ -32,7 +32,7 @@
           <ul>
             <li><a href="#one" class="active">Introduction</a></li>
             <li><a href="#two">High Level Design</a></li>
-            <li><a href="#three">Hardware Design</a></li>
+            <li><a href="#three">Software/Hardware Design</a></li>
             <li><a href="#four">Results</a></li>
             <li><a href="#five">Conclusions</a></li>
             <li><a href="#six">Appendices</a></li>
@@ -56,7 +56,7 @@
                 <div class="container">
                   <header class="major">
                     <h2>IoT Security Platform</h2>
-                    <p>An end-to-end solution for security in any building or home with a seamless interface for monitoring and management.</p>
+                    <p>An end-to-end solution for security on any door in any building or home with a seamless interface for monitoring and management.</p>
                   </header>
                   <p>TODO: summary of what you did and why</p>
                   <h4>Features</h4>
@@ -75,13 +75,25 @@
               <section id="two">
                 <div class="container">
                   <h3>High Level Design</h3>
-                  <p>We have our system set up with a combination of hardware and servers. In order to stream music, we are using a server that would connect to a ESP8826 Wifi module (TODO: add link or something). We implemented a server that would send information to the ESP8826 by using javascript. The data that we are sending are AT commands that will direct the ESP8266 to open or close channels while also sending and receiving data. We are able to send data over a common network by using IPD on the ESP8826. Then we are using one of UART channels on the PIC to send that IPD data from the ESP8266.</p>
+                  <p>Our original project was to develop a low-cost WiFi audio streamer inspired by the widespread emergence of smart home devices such as the Google Home and Amazon Alexa. Initially, we planned to leverage SPI from a WiFi module for a high data rate to enable seamless streaming of 16 bit audio at a 44khz sampling rate. Unfortunately, due to limitations of the WiFi module, we were forced to use UART for data transfer from the module to the PIC32. Theoretically, streaming music is possible over UART. Playing 8 bit audio at 8khz would require the PIC32 to receive at least 8KB per second. A baud rate of 115200 gives us 11,520 samples per second from the WiFi module due to start and stop bits. Our design was simple; a web server would send WAV samples to the ESP8266, which would control the flow of samples being sent to the PIC32, which would parse the data into a sound buffer which would be played via a 12 bit DAC. However, several setbacks forced us to set that idea aside for our current, more practical security system for monitoring access through a door.</p>
+<p>First, it took us several weeks to fully integrate the ESP8266 with the PIC32 as we ran into several issues. Our original intention with the ESP8266 was to program it using the Arduino IDE so that we could have greater control over how we send and receive data over TCP and so we could leverage SPI. However, for some unknown reason, the ESP8266 not only failed to run very basic programs that were programmed onto it but also lost the ability to process AT commands even after reflashing its default firmware. As a result, we were restricted to only AT commands over UART to interface the PIC32, which proved to be insufficient for controlling the bandwidth required for the PIC32 to parse and stream the WAV data. We will expand on how we might implement music streaming on the PIC32 if we were given more time in a later section.</p>
+<p>With our ESP8266, we had the ability to send and receive any sort of data we wanted provided the bandwidth required was not as intensive as music streaming. We decided that given our capabilities with the WiFi module, we wanted to be able to chart and log some sort of data, while also providing a practical use with that data. We brainstormed how we might integrate the data we receive from analog sensors with the internet. We decided to use a distance sensor in order to detect motion and implement a security system similar to modern home security systems from companies such as ADT, FrontPoint and Nest. This was relatively simple to implement since we had already spent time developing mobile and web applications for our original music streaming project, and so the majority of the time for developing our security system was spent on interfacing the distance sensor with the PIC32 and sending that data over TCP to be charted on our web application. The system works as follows:
+<ul>
+  <li>At start, the PIC32 sends the ESP8266 AT commands over serial to establish a connection to a TCP socket via the module.</li>
+  <li>Then, the PIC32 enters a loop to continuously read the sensor data via an ADC.</li>
+  <li>Upon any movement detection, the PIC32 sends a set of AT commands to the ESP8266 commanding it to send the keyword string “event” to the socket server.</li>
+  <li>The server logs this data and informs the web GUI of the new data, via Server Sent Events (SSE), such that it charts the traffic of the motion sensor in real time.</li>
+</ul>
+</p>
+<p>The alarm system is disarmed at default, so each motion detection is logged in our web application, but no sound is played. From both the web application and phone, the user is able to arm the alarm, causing it to play an alarm sound when it detects motion. Alternatively, the user can also play the alarm on demand in case the user wants to test the speakers or immediately signal an event/emergency.</p>
+<p>The primary hardware/software tradeoff present in this system involves the appropriate handling of UART communication with the ESP8266. For example, if two successive commands are sent without waiting for the appropriate response message in between each command, the module begins to spit out incomprehensible information as it cannot handle that sudden inflow of information. As a result, the software was carefully crafted to enable a thread blocking mechanism that can support waiting for specific response from the module before proceeding onwards to the next instruction in the execution path.</p>
+<p>The ESP8266 can connect to any WLAN implementing the IEEE 802.11 b/g/n specification which includes networks provided by Cornell University such as RedRover. Our TCP socket communication data format abides by ASCII, a byte level character encoding using only the bottom 7 bits. Endianness discrepancies between systems was fortunately a non-issue. There are no patents, copyrights, or trademarks relevant to our system.</p>
                 </div>
               </section>
 
               <section id="three">
                 <div class="container">
-                  <h3>Hardware Design</h3>
+                  <h3>Software/Hardware Design</h3>
                   <p>TODO</p>
                 </div>
               </section>
@@ -104,6 +116,11 @@
                 <div class="container">
                   <h3>Appendices</h3>
                   <p>A. The group approves this report for inclusion on the course website. The group approves the video for inclusion on the course youtube channel.</p>
+                  <p>B. Program Listing</p>
+                  <p>C. Schematics</p>
+                  <p>D. Bill of Materials</p>
+                  <p>E. Work Distribution</p>
+                  <p>F. References</p>
                 </div>
               </section>
 
