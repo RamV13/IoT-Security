@@ -116,14 +116,14 @@
     var alarmed = false;
 
     armElement.addEventListener('click', function() {
-      // TODO send request
       armed = !armed;
+      $.get('http://api.ramvellanki.com:3001/' + (armed ? 'arm' : 'disarm'));
       armElement.className = 'mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect ' + (armed ? 'mdl-button--accent' : 'mdl-button--colored');
       armElement.innerHTML = armed ? 'Disarm' : 'Arm';
     });
     alarmElement.addEventListener('click', function() {
-      // TODO send request
       alarmed = !alarmed;
+      $.get('http://api.ramvellanki.com:3001/' + (alarmed ? 'sound' : 'disarm'));
       alarmElement.className = 'mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect ' + (alarmed ? 'mdl-button--accent' : 'mdl-button--colored');
       alarmElement.innerHTML = alarmed ? 'Stop Alarm' : 'Sound Alarm';
     });
