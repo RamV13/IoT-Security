@@ -173,6 +173,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
     PT_YIELD_TIME_msec(RECEIVE_TIMEOUT);
   }
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
+  // check if esp8266 responds to AT commands
   uart_send("AT");
   if (ACCURATE) {
     wait_recv(buffer, "OK");
@@ -180,6 +181,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
     PT_YIELD_TIME_msec(RECEIVE_TIMEOUT);
   }
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
+  // configures esp8266 for single ip connection
   uart_send("AT+CIPMUX=0");
   if (ACCURATE) {
     wait_recv(buffer, "OK");
@@ -187,6 +189,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
     PT_YIELD_TIME_msec(RECEIVE_TIMEOUT);
   }
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
+  // connect the esp8266 to the web server
   uart_send("AT+CIPSTART=\"TCP\",\""IP_ADDRESS"\",3002");
   if (ACCURATE) {
     wait_recv(buffer, "OK");
@@ -199,6 +202,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
 
   static bool edge = false;
   while (1) {
+    // read the distance sensor value
     const unsigned long int value = ReadADC10(0);
     if (SENSOR_DEBUG) {
       tft_fillRoundRect(10, 10, 100, 100, 1, ILI9340_BLACK);
@@ -208,6 +212,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
     }
     if (value < DISTANCE_THRESHOLD) {
       if (edge == false) {
+        // detected falling edge, send event to server
         edge = true;
         uart_send("AT+CIPSEND=7");
         PT_YIELD_TIME_msec(10);
