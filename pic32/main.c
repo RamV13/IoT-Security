@@ -200,7 +200,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
 
   start = true;
 
-  static bool edge = false;
+  static bool edge = true;
   while (1) {
     // read the distance sensor value
     const unsigned long int value = ReadADC10(0);
