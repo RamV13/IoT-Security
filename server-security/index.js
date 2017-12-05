@@ -67,6 +67,7 @@ app.get('/data', (req, res) => {
 });
 
 app.get('/sound', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
   armed = true;
   if (primary_socket) {
     primary_socket.write(ALARM_KEY + '\n');
@@ -77,11 +78,13 @@ app.get('/sound', (req, res) => {
 });
 
 app.get('/arm', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
   armed = true;
   res.send();
 });
 
 app.get('/disarm', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
   armed = false;
   if (primary_socket) {
     primary_socket.write(DISARM_KEY + '\n');
