@@ -95,13 +95,35 @@
                 <div class="container">
                   <h3>Software/Hardware Design</h3>
                   <h4>Software</h4>
-                  
+                  <h5>PIC32 - Main</h5>
+                  <p>We have two main threads on the PIC32, one for the main setup and sensor data processing as well as one for receiving TCP data via UART from the module and for playing the alarm audio accordingly.</p>
+                  <p style="margin-bottom: 0.5em">The main thread initializes by sending a series of AT commands to the ESP8266 to configure it and connect it to the web server:</p>
+                  <ul>
+                    <li>AT+CIPCLOSE closes any WiFi connection currently on the module if there is any. This is required for the security system to be able to successfully connect to the socket server.</li>
+                    <li>ATE0 disables echo mode on the ESP8266 so that we do not receive echoed commands in our PIC32 serial buffer.</li>
+                    <li>AT simply makes sure that the ESP8266 is working properly and responding to our commands.</li>
+                    <li>AT+CIPMUX=0 configures the module for only a single IP connection.</li>
+                    <li>AT+CIPSTART connects the module to the socket server over TCP.</li>
+                  </ul>
+                  <p style="margin-bottom: 0.5em">After initialization, the ESP8266 is successfully connected to the socket server and bidirectional data transmission from/to the PIC32 is enabled. The main thread constantly reads an ADC channel connected to our distance sensor, and compares it with a calculated, pre-set threshold in order to detect someone moving past the sensor. If we detect a falling edge, we issue a command over UART to the module which informs the server that someone has moved pass the sensor.</p>
+                  <img src="images/edges.jpg" style="display: block;  margin: auto; width: 80%"/>
+                  <p>The distance sensor outputs a high voltage when the object is closer, so when the object leaves the field of view of the sensor, our program will detect that falling edge.</p>
+                  <p>The receiving thread handles the arming and disarming of the security system as the web and mobile application has the ability to arm, disarm, and sound the system. The receive thread infinitely loops to receive commands from the socket server that have been issued to the PIC32, and will play the alarm sound accordingly if the system is armed and motion is observed via the sensor or if the socket server directs the PIC32 to play the sound immediately regardless of motion detection.</p>
+                  <p>The alarm sound is a short 1.1 second wav file played at 11khz and is represented as a table of <code>short</code> values placed in a header file. In order to simulate a repeating alarm sound, we set the DMA mode to auto and we abort the transfer on disarming the alarm which is an event received over the TCP socket and subsequently over UART from the module.</p>
+                  <h5>PIC32 - ProtoThreads</h5>
+                  <p>In order to appropriately handle data received from the WiFi module, we had to modify <a href=”https://people.ece.cornell.edu/land/courses/ece4760/PIC32/index_Protothreads.html”>Bruce Land’s threading library</a>, an extension of Adam Dunkel’s ProtoThreads library, to disable UART echoing as well as to support the line endings that the ESP8266 provides. Further, we had to develop additional functions that enabled timing out UART receives as well as reading character by character. Our modifications to the protothreads library can be found in the appendix.</p>
+                  <h5>Server</h5>
+                  <p>Out socket server is a Node.js TCP socket server that reads for the keyword “event” as mentioned above in the <a href="#two">High Level Design</a> and sends the data to the frontend via Server Sent Events (SSE).</p>
+                  <p>Our web server is a Node.js HTTP API for arming, disarming, playing sound on demand, and for subscribing to SSE in order for the frontend to receive real time data efficiently.</p>
+                  <h5>Mobile</h5>
+                  <p>Our mobile application is made for Android and is a simple Kotlin application with two toggle buttons tied to HTTP requests sent to the web server to perform the appropriate action, namely arming, disarming, and sounding the alarm.</p>
+
                   <h4>Hardware</h4>
-                  <img src="images/fritzing.png" style="width: 100%"/>
+                  <img src="images/fritzing.png" style="display: block; margin: auto; width: 100%"/>
                   <p>Our hardware consists of two main modules, a PIC32 microcontroller and an ESP8266-01 WiFi module. The WiFi module we used is very rudimental, and we found that the lack of clear, official documentation for the module made it very difficult to get it set up and running. For our purposes, we set the GPIO pins on the module to floating in order to boot it in normal mode, which enables AT commands, most of which are well documented by the community. Booting the module into programming mode requires pulling GPIO-0 to ground on startup, but we did not have any success programming or reflashing the board in this mode. Although this setback did not allow us to complete our audio streaming idea, it did make the overall system simpler and more intuitive, as no program needs to be uploaded to the ESP8266 for this system to work. Additionally, the module is not designed to be plugged into a breadboard, so we created our own mount for it so that we can easily connect it to the PIC32 via the breadboard without using any header wires.</p>
                   <h5>ESP8266 Module</h5>
                   <p style="margin-bottom: 0.5em">The module connections are as follows:</p>
-                  <img src="images/esp-pinout.png" style="width: 80%"/>
+                  <img src="images/esp-pinout.png" style="display: block; margin: auto; width: 80%"/>
                   <ul>
                     <li>RXD must be connected to TX on the PIC32</li>
                     <li>TXD must be connected to RX on the PIC32</li>
@@ -113,11 +135,11 @@
                   <p>The mode in which the ESP8266 boots up is determined by the GPIO pins. In order to boot up the module in normal mode, both GPIO0 and GPIO2 must be floating. Normal mode is the mode we used for this project, and enables AT commands on the ESP8266. In order to boot up the module in programming mode, GPIO0 must be pulled to ground and GPIO2 must be floating. We did not have any success with programming mode on this specific module for the ESP8266, so we recommend keeping both pins floating. One of our colleagues had success with programming the ESP8266 using a more expensive module from adafruit. You can find it <a href="https://www.adafruit.com/product/2471">here</a>. In addition, the module draws a significant amount of current, so we recommend attaching a 1 µF capacitor across Vcc and Ground.</p>
                   <h5>UART</h5>
                   <p>By connecting the ESP8266 to the PIC32 via RX and TX, we essentially enable the PIC32 to send and receive data to the internet simply by sending AT commands over UART to the ESP8266. The diagram below demonstrates how UART transmits data.</p>
-                  <img src="images/uart.png" style="width: 80%" />
+                  <img src="images/uart.png" style="display: block; margin: auto; width: 80%" />
                   <p>For our system, we used a baud rate of 115200 bps, but a baud rate of 9600 bps could also be used since we are not sending or receiving large blocks of data. The largest block of data we send or receive via UART is the string of 6 characters, “event\n”, which is sent from the PIC32 to the ESP8266. For our previous application of audio streaming, a high baud rate was of utmost importance due to the size of music files and the need for a high sampling frequency.</p>
                   <h5>Distance Sensor</h5>
                   <p style="margin-bottom: 0.5em">By interfacing WiFi with the PIC32, we were able to easily integrate a simple distance sensor into the internet-of-things. The distance sensor we use can accurately detect up to 80 cm, and we determined it was sufficient for our purposes of sensing movement through a door or entryway. The sensor is connected to an ADC channel of the PIC32, which compares the reading to a constant value. The distance measuring characteristics of the sensor can be seen below.</p>
-                  <img src="images/sensor.png" style="width: 50%" />
+                  <img src="images/sensor.png" style="display: block; margin: auto; width: 50%" />
                   <p>We design the security system such that the distance sensor will be facing down from the top of the entryway. The height of a standard door well exceeds the sensor’s max accurate distance of around 80 cm, which allows us to easily track any spikes in its readings. When an object passes by the sensor, the distance will decrease significantly, causing the sensor reading to spike up.</p>
                   <p>Once the sensor detects a falling edge of readings, or in a physical sense when someone has passed the entryway, the sensor will send an event to the web server via the ESP8266, and the web server will direct the data to be charted to a web frontend.</p>
                   <h5>Audio</h5>
@@ -129,6 +151,7 @@
                 <div class="container">
                   <h3>Results</h3>
                   <p>TODO</p>
+                  <img src="images/android.png" style="display: block; margin: auto; height: 400px"/>
                 </div>
               </section>
 
