@@ -11,7 +11,6 @@
 // graphics libraries
 #include "tft_master.h"
 #include "tft_gfx.h"
-#include "utils/tft/tft_master.h"
 
 // utility libraries
 #include <string.h>
