@@ -1,22 +1,19 @@
 /*
- * File:        TFT, keypad, DAC, LED, PORT EXPANDER test
- *              With serial interface to PuTTY console
- * Author:      Bruce Land
- * For use with Sean Carroll's Big Board
+ * File:        main.c
+ * Author:      Norman Chen (nyc7), Giacomo DiLiberto (gvd8), Ram Vellanki (rsv32)
+ * For use with Sean Carroll's Big Board or Small Board
  * Target PIC:  PIC32MX250F128B
  */
 
-////////////////////////////////////
-// clock AND protoThreads configure!
-// You MUST check this file!
-#include "config.h"
-// threading library
-#include "pt_cornell_1_2_2.h"
+#include "config.h" // clock AND ProtoThreads configuration
+#include "pt_cornell_1_2_2.h" // threading library
 
 // graphics libraries
 #include "tft_master.h"
 #include "tft_gfx.h"
 #include "utils/tft/tft_master.h"
+
+// utility libraries
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
