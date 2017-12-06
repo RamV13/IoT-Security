@@ -49,8 +49,6 @@ $(OBJDIR)/tft.o: $(TFT_DIR)/tft_unity.c
 load: $(OBJDIR)/$(TARGET).hex
 	$(LOADER) $(LOADFLAGS) -F$<
 
-clean-output:
-	rm *.xml* && rm log.*
-
 clean:
 	rm -rf $(OBJDIR)/*
+	rm *.xml* && rm log.*
