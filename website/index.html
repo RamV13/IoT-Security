@@ -117,6 +117,26 @@
                   <p>Our web server is a Node.js HTTP API for arming, disarming, playing sound on demand, and for subscribing to SSE in order for the frontend to receive real time data efficiently.</p>
                   <h5>Mobile</h5>
                   <p>Our mobile application is made for Android and is a simple Kotlin application with two toggle buttons tied to HTTP requests sent to the web server to perform the appropriate action, namely arming, disarming, and sounding the alarm.</p>
+                  <h5>ESP8266 WiFi Module Problems</h5>
+                  <p>
+                    <ul>
+                      <li>Sending two successive commands too quickly without waiting for the appropriate response message in between each command sends the module into a state of unspecified behavior.</li>
+                      <li>You <strong>should</strong> disable echo on the ESP8266 by sending it ATE0 so that the ESP8266 echos do not interfere with the UART receive parsing on the PIC32.</li>
+                      <li>Although you must leverage the carriage return and line feed line endings when sending commands to the module, it does not necessarily respond with carriage return and line feed line endings. It’s most reliable to just split on the line feed character (with the exception of the case mentioned below).</li>
+                      <li>We had to receive character by character, rather than newline oriented, after the CIPSEND command to find the “>” special character which indicated the module’s readiness to receive data to be sent.</li>
+                      <li>CIPSEND had to specify a length one longer than the actual data length when the command is being sent from the PIC32. The behavior of the ESP8266 is not exactly the same when it is connected via serial to a computer than when it is connected via serial to the PIC32.</li>
+                      <li>The module non-deterministically chunks multiple TCP receives into single IPD responses. If large amounts of data are being sent to the ESP8266, we recommend adding delimiters so it can me more easily parsed.</li>
+                      <li>The module does not close TCP connections on RESET, so CIPCLOSE must be called at the start of the program before the ESP8266 attempts to establish a new TCP connection.</li>
+                    </ul>
+                  </p>
+                  <h5>Audio Streaming Problems</h5>
+                  <p>We spent a significant amount of time trying to get audio streaming to work using only the TCP connection between the ESP8266 and the web server, and the UART connection between the ESP8266 and the PIC32. Here are some of the problems we ran into while we tried to implement this system.</p>
+                  <ul>
+                    <li>Due to the low data rate, we attempted to encode 12 bit audio using 2 byte samples where each byte’s 7th bit indicates whether it was the top or lower 6 bits of the 12 bit sample but still could not hit the required timing.</li>
+                    <li>Even using a baud rate of 115200, it is mathematically impossible to play anything beyond 8 bit audio at 8khz even with the above encoding.</li>
+                    <li>Unfortunately, even 8 bit audio at 8khz was not possible despite all of our optimizations. Given more time, this problem could potentially be resolved by implementing a rudimentary feedback system in which the PIC32 notifies the web server via the ESP8266 how much data it has left in its buffer.</li>
+                    <li>Parsing time is heavily limited because there are <strong>very</strong> few clock cycles allowed in between UART receives to avoid missing data. In order to combat this issue, we also tried to separate the UART receiving into a separate thread such that it would not block on the parsing but, unfortunately, due to RAM limitations, this was also infeasible as there was not enough capacity to buffer up the UART data to be parsed.</li>
+                  </ul>
 
                   <h4>Hardware</h4>
                   <img src="images/fritzing.png" style="display: block; margin: auto; width: 100%"/>
@@ -166,9 +186,98 @@
                 <div class="container">
                   <h3>Appendices</h3>
                   <p>A. The group approves this report for inclusion on the course website. The group approves the video for inclusion on the course youtube channel.</p>
-                  <p>B. Program Listing<script src="https://gist.github.com/RamV13/1ba3a9faef17af2267314b55d5e71924.js"></script><br>Below are our slight modifications to Bruce Land's <a href="http://people.ece.cornell.edu/land/courses/ece4760/PIC32/ProtoThreads/1_2_2/pt_cornell_1_2_2.h">pt_cornell_1_2_2.h</a>:<br><br><script src="https://gist.github.com/RamV13/6b8b90fb043f7ce5e9da7cb192a0b7aa.js"></script></p>
+                  <p>B. Program Listing<br><br>
+                    Our full repository of source code can be found <a href="https://github.com/RamV13/IoT-Security">here</a>.
+                    <script src="https://gist.github.com/RamV13/1ba3a9faef17af2267314b55d5e71924.js"></script><br>Below are our slight modifications to Bruce Land's <a href="http://people.ece.cornell.edu/land/courses/ece4760/PIC32/ProtoThreads/1_2_2/pt_cornell_1_2_2.h">pt_cornell_1_2_2.h</a>:<br><br><script src="https://gist.github.com/RamV13/6b8b90fb043f7ce5e9da7cb192a0b7aa.js"></script></p>
                   <p>C. Schematics</p>
                   <p>D. Bill of Materials</p>
+                  <table>
+                    <tr>
+                      <th>Part Name</th>
+                      <th>Part Number</th>
+                      <th>Vendor</th>
+                      <th>Price</th>
+                    </tr>
+                    <tr>
+                      <td>Small Board</td>
+                      <td>-</td>
+                      <td>Lab</td>
+                      <td>$4.00</td>
+                    </tr>
+                    <tr>
+                      <td>White Board</td>
+                      <td>-</td>
+                      <td>Lab</td>
+                      <td>$6.00</td>
+                    </tr>
+                    <tr>
+                      <td>Power Supply</td>
+                      <td>-</td>
+                      <td>Lab</td>
+                      <td>$5.00</td>
+                    </tr>
+                    <tr>
+                      <td>PIC 32 Microcontroller</td>
+                      <td>PIC32MX250F128B</td>
+                      <td>Lab</td>
+                      <td>$5.00</td>
+                    </tr>
+                    <tr>
+                      <td>12-Bit DAC</td>
+                      <td>MCP4822</td>
+                      <td>Lab</td>
+                      <td>$3.15</td>
+                    </tr>
+                    <tr>
+                      <td>Wifi Module</td>
+                      <td>ESP8266</td>
+                      <td>MakerFocus via Amazon</td>
+                      <td>$3.25</td>
+                    </tr>
+                    <tr>
+                      <td>Distance Measuring Sensor</td>
+                      <td>GP2Y0A02YK0F</td>
+                      <td>Sparkfun</td>
+                      <td>$14.95</td>
+                    </tr>
+                    <tr>
+                      <td>2 Tactile Push Buttons</td>
+                      <td>PTS635SL43 LFS</td>
+                      <td>Lab</td>
+                      <td>$0.80</td>
+                    </tr>
+                    <tr>
+                      <td>Capacitor</td>
+                      <td>TODO</td>
+                      <td>Lab</td>
+                      <td>$1.00</td>
+                    </tr>
+                    <tr>
+                      <td>Small Solder Board</td>
+                      <td>-</td>
+                      <td>Lab</td>
+                      <td>$1.00</td>
+                    </tr>
+                    <tr>
+                      <td>16 headers</td>
+                      <td>-</td>
+                      <td>Lab</td>
+                      <td>$0.80</td>
+                    </tr>
+                    <tr>
+                      <td>Piezo Speaker</td>
+                      <td>CEP-1141</td>
+                      <td>Lab</td>
+                      <td>$0.90</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Total</strong></td>
+                      <td></td>
+                      <td></td>
+                      <td><strong>$45.85</strong></td>
+                    </tr>
+                  </table>
+
                   <p>E. Work Distribution</p>
                   <p>F. References</p>
                 </div>
