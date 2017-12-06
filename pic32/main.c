@@ -22,74 +22,64 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define IP_ADDRESS  "104.131.124.11"
+#include "alarm.h" // alarm sound header file
 
-#define DISTANCE_THRESHOLD  150
+#define IP_ADDRESS  "104.131.124.11" // remote server IPv4 address
+
+#define DISTANCE_THRESHOLD  150 // threshold in ADC units for distance sensor
 
 #define DAC_config_chan_A 0b0011000000000000
 #define DAC_config_chan_B 0b1011000000000000
 
-volatile unsigned int DAC_data; // output value
-
-#define TIMER_LIMIT       3628/*907*/ // 40 MHz / 44100 = 907, 40 MHz / 11025 = 3628
+#define TIMER_LIMIT       3628 // 40 MHz / 11025 = 3628
 #define DMA_CHANNEL       DMA_CHANNEL2
 #define SPI_CHANNEL       SPI_CHANNEL2
 
-#define RES_SIZE    2000
-#define NUM_RES     5
-char res_table[NUM_RES][RES_SIZE];
-volatile bool res_valids[NUM_RES];
-unsigned int read_res_index;
-unsigned int write_res_index;
-
-#define BUFFER_SIZE  512
-#define NUM_TABLES   10
-unsigned short tables[NUM_TABLES][BUFFER_SIZE];
-volatile bool valids[NUM_TABLES];
-unsigned short play_table_index = 1;
-unsigned short write_table_index;
-bool playing = false;
-
-#include "alarm.h"
-
+// DMA Sound Macro Functions
 #define dma_set_transfer(table, size)  DmaChnSetTxfer(DMA_CHANNEL, table, \
                                          (void*) &SPI2BUF, size * 2, 2, 2);
 #define dma_start_transfer()           DmaChnEnable(DMA_CHANNEL);
 #define sound_alarm()                  dma_set_transfer(ALARM_SOUND, ALARM_SOUND_SIZE); dma_start_transfer();
 #define stop_alarm()                   DmaChnAbortTxfer(DMA_CHANNEL);
 
-static struct pt pt_serial, pt_receive; // thread control structs
+static struct pt pt_main, pt_receive; // thread control structs
 static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
 
 // UART Macros
 
-#define TIMEOUT          10
-#define RECEIVE_TIMEOUT  50
-#define ACCURATE         true
+#define TIMEOUT          10   // number of UART receives to retrieve appropriate before bailing out
+#define RECEIVE_TIMEOUT  50   // timeout in ms for receiving a response after a send
+#define ACCURATE         true // wait for exact responses from the esp if true
 
+// debug enable flags
 #define DEBUG  false
 #define SENSOR_DEBUG  false
 
+// sends `msg` over UART appending with a carriage return and line feed
 #define uart_send(msg) { \
   sprintf(PT_send_buffer, msg "\r\n"); \
   PT_SPAWN(pt, &pt_DMA_output, PT_DMA_PutSerialBuffer(&pt_DMA_output)); \
 }
 
+// sends `msg` over UART
 #define uart_send_raw(msg) { \
   sprintf(PT_send_buffer, msg); \
   PT_SPAWN(pt, &pt_DMA_output, PT_DMA_PutSerialBuffer(&pt_DMA_output)); \
 }
 
+// reads and stores the next line in the UART buffer into the `res` pointer
 #define uart_recv(res) { \
   PT_SPAWN(pt, &pt_input, PT_GetSerialBuffer(&pt_input)); \
   sprintf(res, PT_term_buffer); \
 }
 
+// reads and stores a single character from the UART buffer into the `res` pointer
 #define uart_recv_char(res) { \
   PT_SPAWN(pt, &pt_input, PT_GetSerialBufferChar(&pt_input)); \
   sprintf(res, PT_term_buffer); \
 }
 
+// continuously reads the UART buffer until the value is equal to `msg`
 #define wait_recv(res, msg) { \
   res[0] = 0; \
   int count = 0; \
@@ -111,6 +101,7 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
   } \
 }
 
+// continuously reads the UART buffer until the value is equal to `msg1` or `msg2`
 #define wait_recv_either(res, msg1, msg2) { \
   res[0] = 0; \
   int count = 0; \
@@ -132,6 +123,7 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
   } \
 }
 
+// continuously reads the UART buffer character by character until the character is `msg`
 #define wait_recv_char(res, msg) { \
   res[0] = 0; \
   int count = 0; \
@@ -153,10 +145,11 @@ static struct pt pt_input, pt_output, pt_DMA_output; // UART control threads
   } \
 }
 
-volatile bool start = false;
+volatile bool start = false; // asynchronous receive thread enable
 
-// Serial thread
-static PT_THREAD (protothread_serial(struct pt *pt)) {
+// main thread for initializing the module and TCP connection, reading sensor
+// data, and sending the appropriate data up to the server via UART to the module
+static PT_THREAD (protothread_main(struct pt *pt)) {
   PT_BEGIN(pt);
 
   char buffer[32];
@@ -198,7 +191,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
   }
   if (DEBUG) tft_fillScreen(ILI9340_BLACK);
 
-  start = true;
+  start = true; // enable asynchronous receiving
 
   static bool edge = true;
   while (1) {
@@ -212,7 +205,7 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
     }
     if (value < DISTANCE_THRESHOLD) {
       if (edge == false) {
-        // detected falling edge, send event to server
+        // detected falling edge, send "event" to server
         edge = true;
         uart_send("AT+CIPSEND=7");
         PT_YIELD_TIME_msec(10);
@@ -233,20 +226,22 @@ static PT_THREAD (protothread_serial(struct pt *pt)) {
 static PT_THREAD (protothread_receive(struct pt *pt)) {
   PT_BEGIN(pt);
 
-  char buffer[32]; // TODO try static
+  char buffer[32];
 
+  // only start this asynchronous receiving once start is true (i.e. the 
+  // initialization setup steps are completed by the sending thread)
   while (!start) {
     PT_YIELD_TIME_msec(10);
   }
 
-  static bool alarmed = false;
+  static bool alarmed = false; // true if alarm sound has been started
   while (1) {
     uart_recv(buffer);
-    if (strchr(buffer, '!')) {
+    if (strchr(buffer, '!')) { // sound the alarm
       if (!alarmed) sound_alarm();
       alarmed = true;
       break;
-    } else if (strchr(buffer, '-')) {
+    } else if (strchr(buffer, '-')) { // stop the alarm
       if (alarmed) stop_alarm();
       alarmed = false;
       break;
@@ -257,8 +252,6 @@ static PT_THREAD (protothread_receive(struct pt *pt)) {
 }
 
 void main(void) {
-  // SYSTEMConfigPerformance(PBCLK);
-
   ANSELA = 0; ANSELB = 0; 
 
   INTEnableSystemMultiVectoredInt(); // enable interrupts
@@ -272,10 +265,8 @@ void main(void) {
   SpiChnOpen(SPI_CHANNEL, SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | \
              SPI_OPEN_CKE_REV | SPICON_FRMEN | SPICON_FRMPOL, 2);
   // DMA setup
-  DmaChnOpen(DMA_CHANNEL, 0, DMA_OPEN_AUTO);
+  DmaChnOpen(DMA_CHANNEL, 0, DMA_OPEN_AUTO); // auto for repeating alarm sound
   DmaChnSetEventControl(DMA_CHANNEL, DMA_EV_START_IRQ(_TIMER_2_IRQ));
-  DmaChnSetEvEnableFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
-  DmaChnClrEvFlags(DMA_CHANNEL, DMA_EV_BLOCK_DONE);
 
   PPSOutput(2, RPB5, SDO2); // SPI -> DAC
   PPSOutput(4, RPB10, SS2); // RB9 -> DAC CS
@@ -290,7 +281,7 @@ void main(void) {
   //  - sampling begins immediately after last conversion completes
   /// - SAMP bit is automatically set
   // ADC_AUTO_SAMPLING_OFF -- Sampling begins with AcquireADC10();
-  #define PARAM1  ADC_FORMAT_INTG16 | ADC_CLK_AUTO | ADC_AUTO_SAMPLING_ON //
+  #define PARAM1  ADC_FORMAT_INTG16 | ADC_CLK_AUTO | ADC_AUTO_SAMPLING_ON
   // define setup parameters for OpenADC10
   // ADC ref external  | disable offset test | disable scan mode | do 2 sample |
   //                   use single buf | alternate mode on
@@ -308,26 +299,28 @@ void main(void) {
   // define setup parameters for OpenADC10
   // do not assign channels to scan
   #define PARAM5 SKIP_SCAN_ALL
-  // configure to sample AN11 and AN5 on MUX A and B
+  // configure to sample AN11 on MUX A
   SetChanADC10( ADC_CH0_NEG_SAMPLEA_NVREF | ADC_CH0_POS_SAMPLEA_AN11 );
   // configure ADC using the parameters defined above
   OpenADC10( PARAM1, PARAM2, PARAM3, PARAM4, PARAM5 );
   EnableADC10(); // Enable the ADC
 
   // init the display
-  tft_init_hw();
-  tft_begin();
-  tft_fillScreen(ILI9340_BLACK);
-  tft_setTextSize(2);
-  tft_setTextColor(ILI9340_WHITE);
-  tft_setRotation(0); // 240x320 vertical display
+  if (DEBUG) {
+    tft_init_hw();
+    tft_begin();
+    tft_fillScreen(ILI9340_BLACK);
+    tft_setTextSize(2);
+    tft_setTextColor(ILI9340_WHITE);
+    tft_setRotation(0); // 240x320 vertical display
+  }
 
   // init the threads
-  PT_INIT(&pt_serial);
+  PT_INIT(&pt_main);
   PT_INIT(&pt_receive);
 
   while (1){
-    PT_SCHEDULE(protothread_serial(&pt_serial));
+    PT_SCHEDULE(protothread_main(&pt_main));
     PT_SCHEDULE(protothread_receive(&pt_receive));
   }
 }
