@@ -2723,6 +2723,7 @@
 
   #titleBar {
     display: none;
+    background: #90A4AE !important;
   }
 
   @media screen and (max-width: 1024px) {
