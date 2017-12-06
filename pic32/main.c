@@ -316,7 +316,7 @@ void main(void) {
   PT_INIT(&pt_main);
   PT_INIT(&pt_receive);
 
-  while (1){
+  while (1) {
     PT_SCHEDULE(protothread_main(&pt_main));
     PT_SCHEDULE(protothread_receive(&pt_receive));
   }
