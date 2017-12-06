@@ -87,14 +87,37 @@
 </p>
 <p>The alarm system is disarmed at default, so each motion detection is logged in our web application, but no sound is played. From both the web application and phone, the user is able to arm the alarm, causing it to play an alarm sound when it detects motion. Alternatively, the user can also play the alarm on demand in case the user wants to test the speakers or immediately signal an event/emergency.</p>
 <p>The primary hardware/software tradeoff present in this system involves the appropriate handling of UART communication with the ESP8266. For example, if two successive commands are sent without waiting for the appropriate response message in between each command, the module begins to spit out incomprehensible information as it cannot handle that sudden inflow of information. As a result, the software was carefully crafted to enable a thread blocking mechanism that can support waiting for specific response from the module before proceeding onwards to the next instruction in the execution path.</p>
-<p>The ESP8266 can connect to any WLAN implementing the IEEE 802.11 b/g/n specification which includes networks provided by Cornell University such as RedRover. Our TCP socket communication data format abides by ASCII, a byte level character encoding using only the bottom 7 bits. Endianness discrepancies between systems was fortunately a non-issue. There are no patents, copyrights, or trademarks relevant to our system.</p>
+<p>The ESP8266 can connect to any WLAN implementing the IEEE 802.11 b/g/n specification which includes networks provided by Cornell University such as RedRover. Our TCP socket communication data format abides by ASCII, a byte level character encoding using only the bottom 7 bits. Endianness discrepancies between systems was fortunately a non-issue. Of course, UART communication remains in line with the RS232 specification. There are no patents, copyrights, or trademarks relevant to our system.</p>
                 </div>
               </section>
 
               <section id="three">
                 <div class="container">
                   <h3>Software/Hardware Design</h3>
-                  <p>TODO</p>
+                  <h4>Software</h4>
+                  
+                  <h4>Hardware</h4>
+                  <img src="images/fritzing.png" style="width: 100%"/>
+                  <p>Our hardware consists of two main modules, a PIC32 microcontroller and an ESP8266-01 WiFi module. The WiFi module we used is very rudimental, and we found that the lack of clear, official documentation for the module made it very difficult to get it set up and running. For our purposes, we set the GPIO pins on the module to floating in order to boot it in normal mode, which enables AT commands, most of which are well documented by the community. Booting the module into programming mode requires pulling GPIO-0 to ground on startup, but we did not have any success programming or reflashing the board in this mode. Although this setback did not allow us to complete our audio streaming idea, it did make the overall system simpler and more intuitive, as no program needs to be uploaded to the ESP8266 for this system to work. Additionally, the module is not designed to be plugged into a breadboard, so we created our own mount for it so that we can easily connect it to the PIC32 via the breadboard without using any header wires.</p>
+                  <p style="margin-bottom: 0.5em">The module connections are as follows:</p>
+                  <img src="images/esp-pinout.png" style="width: 80%"/>
+                  <ul>
+                    <li>RXD must be connected to TX on the PIC32</li>
+                    <li>TXD must be connected to RX on the PIC32</li>
+                    <li>VCC must be connected to 3.3 V</li>
+                    <li>GND must be connected to a common ground with the PIC32</li>
+                    <li>RST must be floating. Since RST is triggered by being pulled to ground, we recommend connecting this pin with a button connected to ground to act as a reset button for the module.</li>
+                    <li>CH_PD must be connected to 3.3 V</li>
+                  </ul>
+                  <p>The mode in which the ESP8266 boots up is determined by the GPIO pins. In order to boot up the module in normal mode, both GPIO0 and GPIO2 must be floating. Normal mode is the mode we used for this project, and enables AT commands on the ESP8266. In order to boot up the module in programming mode, GPIO0 must be pulled to ground and GPIO2 must be floating. We did not have any success with programming mode on this specific module for the ESP8266, so we recommend keeping both pins floating. One of our colleagues had success with programming the ESP8266 using a more expensive module from adafruit. You can find it <a href="https://www.adafruit.com/product/2471">here</a>. In addition, the module draws a significant amount of current, so we recommend attaching a 1 µF capacitor across Vcc and Ground.</p>
+                  <p>By connecting the ESP8266 to the PIC32 via RX and TX, we essentially enable the PIC32 to send and receive data to the internet simply by sending AT commands over UART to the ESP8266. The diagram below demonstrates how UART transmits data.</p>
+                  <img src="images/uart.png" style="width: 80%" />
+                  <p>For our system, we used a baud rate of 115200 bps, but a baud rate of 9600 bps could also be used since we are not sending or receiving large blocks of data. The largest block of data we send or receive via UART is the string of 6 characters, “event\n”, which is sent from the PIC32 to the ESP8266. For our previous application of audio streaming, a high baud rate was of utmost importance due to the size of music files and the need for a high sampling frequency.</p>
+                  <p style="margin-bottom: 0.5em">By interfacing WiFi with the PIC32, we were able to easily integrate a simple distance sensor into the internet-of-things. The distance sensor we use can accurately detect up to 80 cm, and we determined it was sufficient for our purposes of sensing movement through a door or entryway. The sensor is connected to an ADC channel of the PIC32, which compares the reading to a constant value. The distance measuring characteristics of the sensor can be seen below.</p>
+                  <img src="images/sensor.png" style="width: 50%" />
+                  <p>We design the security system such that the distance sensor will be facing down from the top of the entryway. The height of a standard door well exceeds the sensor’s max accurate distance of around 80 cm, which allows us to easily track any spikes in its readings. When an object passes by the sensor, the distance will decrease significantly, causing the sensor reading to spike up.</p>
+                  <p>Once the sensor detects a falling edge of readings, or in a physical sense when someone has passed the entryway, the sensor will send an event to the web server via the ESP8266, and the web server will direct the data to be charted to a web frontend. In order to enable the alarm sound for the system, we simply connected the PIC32 to the DAC, whose output was connected to a small speaker attached to our breadboard.</p>
+                  <p>The alarm sound is by setting the SPI in framed mode so that the DMA can directly output the the sound table to the SPI, which is connected to the DAC. Using this setup allows us to play the alarm sound without using an ISR, and therefore be able to continue to detect motion and receive commands from the mobile/web application.</p>
                 </div>
               </section>
 
