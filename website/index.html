@@ -80,7 +80,7 @@
                     <ul>
                       <li>At start, the PIC32 sends the ESP8266 AT commands over serial to establish a connection to a TCP socket via the module.</li>
                       <li>Then, the PIC32 enters a loop to continuously read the sensor data via an ADC.</li>
-                      <li>Upon any movement detection, the PIC32 sends a set of AT commands to the ESP8266 commanding it to send the keyword string “event” to the socket server.</li>
+                      <li>Upon any movement detection, the PIC32 sends a set of AT commands to the ESP8266 commanding it to send the keyword string "event" to the socket server.</li>
                       <li>The server logs this data and informs the web GUI of the new data, via Server Sent Events (SSE), such that it charts the traffic of the motion sensor in real time.</li>
                     </ul>
                   </p>
@@ -110,9 +110,9 @@
                   <p>The receiving thread handles the arming and disarming of the security system as the web and mobile application has the ability to arm, disarm, and sound the system. The receive thread infinitely loops to receive commands from the socket server that have been issued to the PIC32, and will play the alarm sound accordingly if the system is armed and motion is observed via the sensor or if the socket server directs the PIC32 to play the sound immediately regardless of motion detection.</p>
                   <p>The alarm sound is a short 1.1 second wav file played at 11khz and is represented as a table of <code>short</code> values placed in a header file. In order to simulate a repeating alarm sound, we set the DMA mode to auto and we abort the transfer on disarming the alarm which is an event received over the TCP socket and subsequently over UART from the module.</p>
                   <h5>PIC32 - ProtoThreads</h5>
-                  <p>In order to appropriately handle data received from the WiFi module, we had to modify <a href=”https://people.ece.cornell.edu/land/courses/ece4760/PIC32/index_Protothreads.html”>Bruce Land’s threading library</a>, an extension of Adam Dunkel’s ProtoThreads library, to disable UART echoing as well as to support the line endings that the ESP8266 provides. Further, we had to develop additional functions that enabled timing out UART receives as well as reading character by character. Our modifications to the protothreads library can be found in the appendix.</p>
+                  <p>In order to appropriately handle data received from the WiFi module, we had to modify <a href="https://people.ece.cornell.edu/land/courses/ece4760/PIC32/index_Protothreads.html">Bruce Land’s threading library</a>, an extension of Adam Dunkel’s ProtoThreads library, to disable UART echoing as well as to support the line endings that the ESP8266 provides. Further, we had to develop additional functions that enabled timing out UART receives as well as reading character by character. Our modifications to the protothreads library can be found in the appendix.</p>
                   <h5>Server</h5>
-                  <p>Out socket server is a Node.js TCP socket server that reads for the keyword “event” as mentioned above in the <a href="#two">High Level Design</a> and sends the data to the frontend via Server Sent Events (SSE).</p>
+                  <p>Out socket server is a Node.js TCP socket server that reads for the keyword "event" as mentioned above in the <a href="#two">High Level Design</a> and sends the data to the frontend via Server Sent Events (SSE).</p>
                   <p>Our web server is a Node.js HTTP API for arming, disarming, playing sound on demand, and for subscribing to SSE in order for the frontend to receive real time data efficiently.</p>
                   <h5>Mobile</h5>
                   <p>Our mobile application is made for Android and is a simple Kotlin application with two toggle buttons tied to HTTP requests sent to the web server to perform the appropriate action, namely arming, disarming, and sounding the alarm.</p>
@@ -122,7 +122,7 @@
                       <li>Sending two successive commands too quickly without waiting for the appropriate response message in between each command sends the module into a state of unspecified behavior.</li>
                       <li>You <strong>should</strong> disable echo on the ESP8266 by sending it ATE0 so that the ESP8266 echos do not interfere with the UART receive parsing on the PIC32.</li>
                       <li>Although you must leverage the carriage return and line feed line endings when sending commands to the module, it does not necessarily respond with carriage return and line feed line endings. It’s most reliable to just split on the line feed character (with the exception of the case mentioned below).</li>
-                      <li>We had to receive character by character, rather than newline oriented, after the CIPSEND command to find the “>” special character which indicated the module’s readiness to receive data to be sent.</li>
+                      <li>We had to receive character by character, rather than newline oriented, after the CIPSEND command to find the ">" special character which indicated the module’s readiness to receive data to be sent.</li>
                       <li>CIPSEND had to specify a length one longer than the actual data length when the command is being sent from the PIC32. The behavior of the ESP8266 is not exactly the same when it is connected via serial to a computer than when it is connected via serial to the PIC32.</li>
                       <li>The module non-deterministically chunks multiple TCP receives into single IPD responses. If large amounts of data are being sent to the ESP8266, we recommend adding delimiters so it can me more easily parsed.</li>
                       <li>The module does not close TCP connections on RESET, so CIPCLOSE must be called at the start of the program before the ESP8266 attempts to establish a new TCP connection.</li>
@@ -155,7 +155,7 @@
                   <h5>UART</h5>
                   <p>By connecting the ESP8266 to the PIC32 via RX and TX, we essentially enable the PIC32 to send and receive data to the internet simply by sending AT commands over UART to the ESP8266. The diagram below demonstrates how UART transmits data.</p>
                   <img src="images/uart.png" style="display: block; margin: auto; width: 80%" />
-                  <p>For our system, we used a baud rate of 115200 bps, but a baud rate of 9600 bps could also be used since we are not sending or receiving large blocks of data. The largest block of data we send or receive via UART is the string of 6 characters, “event\n”, which is sent from the PIC32 to the ESP8266. For our previous application of audio streaming, a high baud rate was of utmost importance due to the size of music files and the need for a high sampling frequency.</p>
+                  <p>For our system, we used a baud rate of 115200 bps, but a baud rate of 9600 bps could also be used since we are not sending or receiving large blocks of data. The largest block of data we send or receive via UART is the string of 6 characters, "event\n", which is sent from the PIC32 to the ESP8266. For our previous application of audio streaming, a high baud rate was of utmost importance due to the size of music files and the need for a high sampling frequency.</p>
                   <h5>Distance Sensor</h5>
                   <p style="margin-bottom: 0.5em">By interfacing WiFi with the PIC32, we were able to easily integrate a simple distance sensor into the internet-of-things. The distance sensor we use can accurately detect up to 80 cm, and we determined it was sufficient for our purposes of sensing movement through a door or entryway. The sensor is connected to an ADC channel of the PIC32, which compares the reading to a constant value. The distance measuring characteristics of the sensor can be seen below.</p>
                   <img src="images/sensor.png" style="display: block; margin: auto; width: 50%" />
@@ -169,15 +169,35 @@
               <section id="four">
                 <div class="container">
                   <h3>Results</h3>
-                  <p>TODO</p>
-                  <img src="images/android.png" style="display: block; margin: auto; height: 400px"/>
+                  <p>We were fairly surprised by the low latency performance of our system. From the user side, all the controls from the web and mobile application feel instant from a human perspective and the web application graphs data both accurately and efficiently. Below are some screenshots of the charts from our web application. Note that these charts are graphed real time by the second, so any new information detected by the system will be processed instantly and displayed to the user. The user also has the ability to change the time scale of the graph, and examples of a seconds timescale and a minutes timescale are both shown below.</p>
+                  <img src="images/seconds.png" style="display: block; margin: auto; width: 100%" />
+                  <img src="images/minutes.png" style="display: block; margin: auto; width: 100%" />
+                  <p>Below is a screenshot of the control panel from the web application. This control panel has the same exact functions has the mobile application below it. The only difference between the mobile application and web application is that the mobile application does not have the ability to view the charted data.</p>
+                  <img src="images/controls.png" style="display: block; margin: auto; width: 50%" />
+                  <br>
+                  <img src="images/android.png" style="display: block; margin: auto; height: 400px; box-shadow: 0px 0px 20px 1px #000" />
+                  <br>
+                  <p>In order to guarantee the security of our sensor, we had to extensively test it in different configurations with humans moving past it. When the sensor is attached to the top of the door, we found that our sensor can detect people of tall height and people trying to crawl past it. In addition, because the sensor has a 15 degree field of view, we found that this was sufficient for it to detect people trying to sneak past the sensor by moving through near the edge of the door.</p>
+                  <p>We found that our sensor almost never misses someone moving past the sensor, but we did catch some false positives in our testing. In a trial of over 100 varying pass-throughs, we got a 98% hit rate with 2% being false positives. In a real world setting, this would guarantee the security of any entryway the user feels they need to secure. In addition, because the web and mobile interface work seamlessly with the system, the user can easily disable any false alarms by using the mobile or web application.</p>
+                  <p>In terms of performance, we are able to read sensor data at a right of once per 10 ms thus ensuring that no human could ever travel through the range of the sensor going undetected. Further, the TCP latency on Cornell’s network up to our DigitalOcean server running the NGINX reverse proxy HTTP server has been consistently around 200ms. As a result, the time between sending a command from the web frontend or the Android app and receiving it on the PIC32 is unnoticeable. Further, the delay is minimized by leveraging concurrency with two threads so as to separate the receiving of data from the reading of sensor data and sending of data. By fully separating the reading and writing, we eliminated the possibility of any race conditions and thus the need for concurrency primitives such as semaphores.</p>
+                  <p>There were no interference issues present because we simply leveraged Cornell's WiFi network and did not need to establish our own.</p>
+                  <p>There are still some improvements that can be done in terms of usability. We have not yet developed an interface for the user to change Wi-Fi networks on the system. In addition, we have not implemented a mechanism for the security system to work without Wi-Fi, so it is currently not possible to arm and disarm the system without internet access. Another simple improvement would be to provide a battery backup power source in the event of a power outage. Further, web security practices could be implemented to secure the socket connection so as to ensure that random entities cannot hijack the TCP socket or HTTP API.</p>
                 </div>
               </section>
 
               <section id="five">
                 <div class="container">
                   <h3>Conclusions</h3>
-                  <p>TODO</p>
+                  <p>The security system we developed exceeded our expectations. Given that we spent a significant amount of time on trying to get audio streaming to work, we were not left with much time to brainstorm and develop this new idea. However, because we had already spent most of the 5 weeks learning about the ESP8266 and interfacing it with the PIC32, we realized that the possibilities for our project were limitless since we could easily connect any hardware device to the internet. We feel that this project not only demonstrates the importance of the internet of things, but also how simple it is to interface anything one can think of to the internet.</p>
+                  <p>If we were to tackle our music streaming project next time, we feel that it may still have been possible to get audio streaming working. Given that it took us at least 3 weeks to get the ESP8266 fully interfaced with the PIC32, we were severely limited by time to fully get our music streaming algorithm working over UART. With more time, we could have implemented a rudimentary feedback system from the PIC32 to the web server to control the the amount of data being sent from the server to the ESP8266. In addition, with a more straightforward module, we believe that we could have gotten even 12 bit audio at 44khz using the SPI module on the ESP8266 since the speed of SPI can go over 10 Mbps.</p>
+                  <p>There are also several ways in which we can extend our home security project. The PIC32 is a very versatile and powerful microcontroller, so it is a perfect candidate for a base station that can send information out for processing and receive commands to control different parts of the home. In addition the ESP8266 is both cheap and powerful, so we could feasibly purchase multiple modules to extrapolate our projects to multiple doors.</p>
+                  <h5>Ethical Considerations</h5>
+                  <p>During the course of this project, we made sure that we were strictly adhering to the IEE Code of Ethics found <a href="https://www.ieee.org/about/corporate/governance/p7-8.html""">here</a>, specifically with regards to the following: to seek, accept, and offer honest criticism of technical work, to acknowledge and correct errors, and to credit properly the contributions of others. We took advantage of the fact that there were two other groups that we knew of who used the ESP8266. Discussing with them the problems we were running into helped us greatly in terms of debugging and also determining the scope of what we can do with the module. In addition, once we had a working library to interface the module with the PIC32, we found any opportunity to assist other groups using the same module to get their device working in their project. With regards to holding "paramount the safety, health, and welfare of the public" we have made sure that our device is secure on a hardware level and to disclose all potential vulnerabilities on the software side. By developing an internet enabled device, we are inherently putting the user at risk by exposing this security system to the web without a robust security system put in place for our web application. In order for our product to be safely used by someone, we would need to implement that system. In addition, <a href="https://www.fcc.gov/consumers/guides/wireless-devices-and-health-concerns">this article</a> on the safety of wireless devices should be considered. While there is no national standard for the safe levels of exposure to WiFi or any wireless device for that matter, these safety considerations should still be accounted for.</p>
+                  <h5>Legal Considerations</h5>
+                  <p>The ESP8266 adheres to the FCC/CE/TELEC/SRRC standards and is UMA compliant.</p>
+                  <h5>IP Considerations</h5>
+                  <p>The various software libraries we leveraged are released under the following licenses: Apache License 2.0, Attribution-ShareAlike 3.0 United States, and the MIT license. We abide by all restrictions present in these licenses and have released our own software under the MIT license.</p>
+                  <p>The only patent/trademark consideration for this project stems from the fact that the Apache License 2.0, which was applied to the Material Design Lite library by Google, prohibits the use of their trademark. There are no patent opportunities for this project.</p>
                 </div>
               </section>
 
@@ -278,10 +298,60 @@
                   </table>
 
                   <p>E. Work Distribution</p>
+                  <table>
+                    <tr>
+                      <th>Norman</th>
+                      <th>Giacomo</th>
+                      <th>Ram</th>
+                    </tr>
+                    <tr>
+                      <td>
+                        <ul>
+                          <li>Developed alarm sound and implemented sound playback from the PIC32 via DMA</li>
+                          <li>Pair programmed with Ram to modify protothreads cornell libraries to fully interface the PIC32 with the ESP8266</li>
+                          <li>Developed C code on the PIC32 to send events to and receive data from the web server</li>
+                        </ul>
+                      </td>
+                      <td>
+                        <ul>
+                          <li>Designed layout of breadboard</li>
+                          <li>Developed breadboard mount for ESP8266</li>
+                          <li>Made big board at the beginning of the semester, which we used extensively for debugging</li>
+                          <li>Drew block diagrams and schematics for lab report</li>
+                          <li>Made small board and transferred our entire circuit from the big board to the small board</li>
+                        </ul>
+                      </td>
+                      <td>
+                        <ul>
+                          <li>Implemented web and mobile applications used to control the security system</li>
+                          <li>Developed the socket server used to send data to the ESP8266 and receive data from the ESP8266</li>
+                          <li>Pair programmed with Norman to modify protothreads cornell libraries to fully interface the PIC32 with the ESP8266</li>
+                          <li>Designed website</li>
+                          <li>Implemented the logic required to detect movement using the distance sensor</li>
+                        </ul>
+                      </td>
+                    </tr>
+                  </table>
                   <p>F. References</p>
+                  <ul>
+                    <li><a href="https://people.ece.cornell.edu/land/courses/ece4760/PIC32/Microchip_stuff/32-bit-Peripheral-Library-Guide.pdf">Microchip Peripheral Libraries</a></li>
+                    <li><a href="https://nurdspace.nl/images/e/e0/ESP8266_Specifications_English.pdf">ESP8266 Specifications</a></li>
+                    <li><a href="https://cdn.sparkfun.com/datasheets/Wireless/WiFi/ESP8266ModuleV1.pdf">ESP8266 Pinout</a></li>
+                    <li><a href="http://fab.cba.mit.edu/classes/863.14/tutorials/Programming/serialwifi.html">Accurate and clear guide to get started with the ESP8266</a></li>
+                    <li><a href="https://github.com/esp8266/esp8266-wiki/wiki">Good reference for everything about the ESP8266</a></li>
+                    <li><a href="http://www.forward.com.au/pfod/ESP8266/GPIOpins/index.html">Detail about how to boot into different modes of the ESP8266</a></li>
+                    <li><a href="https://room-15.github.io/blog/2015/03/26/esp8266-at-command-reference/">Unofficial, but clear documentation for AT commands for the ESP8266</a></li>
+                    <li><a href="http://www.espressif.com/sites/default/files/documentation/4a-esp8266_at_instruction_set_en.pdf">Official documentation for AT commands for the ESP8266</a></li>
+                    <li><a href="https://hackaday.io/project/3815-pic32-stereo-audio-player-with-microsd-card">Project for stereo music streaming to the PIC32</a></li>
+                    <li><a href="https://getmdl.io/">Material Design Lite</a></li>
+                    <li><a href="https://expressjs.com/">ExpressJS</a></li>
+                    <li><a href="http://www.chartjs.org/">ChartJS</a></li>
+                    <li><a href="https://lodash.com/">Lodash</a></li>
+                    <li><a href="https://jquery.com/">jQuery</a></li>
+                    <li><a href="https://www.npmjs.com/package/sse-node">sse-node</a></li>
+                  </ul>
                 </div>
               </section>
-
           </div>
 
         <!-- Footer -->
